@@ -125,7 +125,7 @@ export default function PeoplePage() {
 
   async function saveEdit(member: EditableMember) {
     const full_name = (member.draft_name ?? "").trim();
-    const email = (member.draft_email ?? "").trim().toLowerCase();
+    const email = (member.draft_email ?? "").trim().toLowerCase().replace(/\s/g, "");
     const color_index = Number(member.draft_color_index ?? 0);
 
     if (!full_name || !email) {
@@ -153,7 +153,7 @@ export default function PeoplePage() {
 
   async function addMember() {
     const full_name = newName.trim();
-    const email = newEmail.trim().toLowerCase();
+    const email = newEmail.trim().toLowerCase().replace(/\s/g, "");
 
     if (!full_name || !email) {
       alert("Please fill in both name and email.");

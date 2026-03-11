@@ -127,11 +127,11 @@ Deno.serve(async (req) => {
   );
 
   // 1. Email + cancel calendar for OLD assignee
-  if (oldMember) {
+  if (oldMember && oldMember != changedByMember) {
     await sendEmail(
       oldMember.email,
       `iPSC duty change for ${duty_date}`,
-      `Hi ${oldMember.full_name},\n\nYour iPSC medium-change duty on ${duty_date} has been reassigned by ${changer}.\n\nYou no longer need to come in on that date.\n\n— iPSC-DvirLab`,
+      `Hi ${oldMember.full_name},\n\nYour iPSC medium-change duty on ${duty_date} has been reassigned by ${changer}.\n\n— iPSC-DvirLab`,
       gmailToken
     );
     if (assignment?.gcal_event_id) {
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
 
   // 2. Email + create calendar event for NEW assignee
   let newEventId: string | null = null;
-  if (newMember) {
+  if (newMember && newMember != changedByMember) {
     await sendEmail(
       newMember.email,
       `You're assigned: iPSC medium change on ${duty_date}`,
