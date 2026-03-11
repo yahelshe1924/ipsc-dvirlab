@@ -103,24 +103,39 @@ export default function CalendarPage() {
     });
   }
 
-  // Save / upsert a duty
   async function handleSave(dateKey: string, patch: Partial<DutyAssignment>) {
-    const old = duties[dateKey];
-    const oldMemberId = old?.member_id ?? null;
-    const newMemberId = patch.member_id ?? null;
+  console.log("handleSave dateKey:", dateKey);
+  console.log("handleSave patch:", patch);
 
-    const { data, error } = await supabase
-      .from("duty_assignments")
-      .upsert({ duty_date: dateKey, ...patch }, { onConflict: "duty_date" })
-      .select()
-      .single();
+  const old = duties[dateKey];
+  const oldMemberId = old?.member_id ?? null;
+  const newMemberId = patch.member_id ?? null;
 
-    if (error) {
-      console.error("Error saving duty:", error);
-      return;
-    }
+  const { data, error } = await supabase
+    .from("duty_assignments")
+    .upsert({ duty_date: dateKey, ...patch }, { onConflict: "duty_date" })
+    .select()
+    .single();
 
-    setDuties((prev) => ({ ...prev, [dateKey]: data as DutyAssignment }));
+  console.log("save result data:", data);
+  console.log("save result error:", error);
+
+  if (error) {
+    console.error("Error saving duty:", error);
+    return;
+  }
+
+  if (oldMemberId !== newMemberId && loggedIn) {
+    await supabase.from("assignment_audit").insert({
+      duty_date: dateKey,
+      old_member_id: oldMemberId,
+      new_member_id: newMemberId,
+      changed_by_id: loggedIn.id,
+    });
+  }
+
+  await loadDuties(year, month);
+}
 
     if (oldMemberId !== newMemberId && loggedIn) {
       await supabase.from("assignment_audit").insert({

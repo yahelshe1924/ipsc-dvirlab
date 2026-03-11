@@ -51,15 +51,19 @@ export default function DayModal({
   const activePeople = members.filter(m => m.active);
 
   async function handleSave() {
-    setSaving(true);
-    await onSave(dateKey, {
-      member_id: selectedMemberId || null,
-      volume_ml: volumeMl !== "" ? Number(volumeMl) : null,
-      notes,
-    });
-    setSaving(false);
-    onClose();
-  }
+  const payload = {
+    member_id: selectedMemberId || null,
+    volume_ml: volumeMl !== "" ? Number(volumeMl) : null,
+    notes,
+  };
+
+  console.log("DayModal save payload:", payload);
+
+  setSaving(true);
+  await onSave(dateKey, payload);
+  setSaving(false);
+  onClose();
+}
 
   async function handleRemove() {
     await onRemoveAssignment(dateKey);
