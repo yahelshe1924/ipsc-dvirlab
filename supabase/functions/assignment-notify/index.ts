@@ -11,17 +11,6 @@
  * Behavior:
  *   • If someone assigns themselves, no email is sent to themselves
  *   • But a Google Calendar event is still created for them
- *
- * Required env vars (set in Supabase Dashboard → Edge Functions → Secrets):
- *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
- *   GMAIL_CLIENT_ID
- *   GMAIL_CLIENT_SECRET
- *   GMAIL_REFRESH_TOKEN
- *   GOOGLE_CALENDAR_CLIENT_ID
- *   GOOGLE_CALENDAR_CLIENT_SECRET
- *   GOOGLE_CALENDAR_REFRESH_TOKEN
- *   FROM_EMAIL
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -32,7 +21,6 @@ const FROM_EMAIL = Deno.env.get("FROM_EMAIL")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-// ── OAuth helper ──────────────────────────────────────────────────────────────
 async function getAccessToken(
   clientId: string,
   clientSecret: string,
@@ -58,7 +46,6 @@ async function getAccessToken(
   return json.access_token;
 }
 
-// ── Send email via Gmail API ─────────────────────────────────────────────────
 async function sendEmail(
   to: string,
   subject: string,
@@ -97,7 +84,6 @@ async function sendEmail(
   }
 }
 
-// ── Google Calendar helpers ──────────────────────────────────────────────────
 async function createCalendarEvent(
   attendeeEmail: string,
   dutyDate: string,
@@ -154,18 +140,26 @@ async function cancelCalendarEvent(eventId: string, accessToken: string) {
   }
 }
 
-// ── Main handler ─────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     const record = payload.record;
 
-    const {
-      duty_date,
+    const { duty_date, old_member_id, new_member_id, changed_by_id } = record;
+
+    const oldMemberId = old_member_id != null ? String(old_member_id) : null;
+    const newMemberId = new_member_id != null ? String(new_member_id) : null;
+    const changedById = changed_by_id != null ? String(changed_by_id) : null;
+
+    console.log("assignment-notify ids:", {
       old_member_id,
       new_member_id,
       changed_by_id,
-    } = record;
+      oldMemberId,
+      newMemberId,
+      changedById,
+      duty_date,
+    });
 
     const ids = [old_member_id, new_member_id, changed_by_id].filter(Boolean);
 
@@ -178,11 +172,11 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to load members: ${membersError.message}`);
     }
 
-    const byId = Object.fromEntries((members ?? []).map((m) => [m.id, m]));
+    const byId = Object.fromEntries((members ?? []).map((m) => [String(m.id), m]));
 
-    const oldMember = old_member_id ? byId[old_member_id] : null;
-    const newMember = new_member_id ? byId[new_member_id] : null;
-    const changedByMember = changed_by_id ? byId[changed_by_id] : null;
+    const oldMember = oldMemberId ? byId[oldMemberId] ?? null : null;
+    const newMember = newMemberId ? byId[newMemberId] ?? null : null;
+    const changedByMember = changedById ? byId[changedById] ?? null : null;
     const changer = changedByMember?.full_name ?? "A lab member";
 
     const { data: assignment, error: assignmentError } = await supabase
@@ -209,16 +203,21 @@ Deno.serve(async (req) => {
       Deno.env.get("GOOGLE_CALENDAR_REFRESH_TOKEN")!
     );
 
-    // 1. Handle OLD assignee
-    // No email to self, but still cancel old calendar event if one exists.
+    // OLD assignee:
+    // no email if the changer is the same person, but still cancel prior event
     if (oldMember) {
-      if (old_member_id !== changed_by_id) {
+      if (oldMemberId !== changedById) {
         await sendEmail(
           oldMember.email,
           `iPSC duty change for ${duty_date}`,
           `Hi ${oldMember.full_name},\n\nYour iPSC medium-change duty on ${duty_date} has been reassigned by ${changer}.\n\n— iPSC-DvirLab`,
           gmailToken
         );
+      } else {
+        console.log("Skipping removal email to self:", {
+          oldMemberId,
+          changedById,
+        });
       }
 
       if (assignment?.gcal_event_id) {
@@ -226,18 +225,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 2. Handle NEW assignee
-    // No email to self, but still create a calendar event.
+    // NEW assignee:
+    // no email if self-assigned, but still create calendar event
     let newEventId: string | null = null;
 
     if (newMember) {
-      if (new_member_id !== changed_by_id) {
+      if (newMemberId !== changedById) {
         await sendEmail(
           newMember.email,
           `You're assigned: iPSC medium change on ${duty_date}`,
           `Hi ${newMember.full_name},\n\nYou have been assigned the iPSC medium-change duty on ${duty_date} by ${changer}.\n\nPlease log in to iPSC-DvirLab to confirm and report when done.\n\n— iPSC-DvirLab`,
           gmailToken
         );
+      } else {
+        console.log("Skipping assignment email to self:", {
+          newMemberId,
+          changedById,
+        });
       }
 
       newEventId = await createCalendarEvent(
@@ -247,7 +251,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Persist new gcal_event_id
     const { error: updateError } = await supabase
       .from("duty_assignments")
       .update({ gcal_event_id: newEventId })
