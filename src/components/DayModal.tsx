@@ -184,7 +184,7 @@ export default function DayModal({
               <label style={label}>Volume changed (mL)</label>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <input
-                  type="number" min="0" step="5"
+                  type="number" min="0" step="0.5"
                   value={volumeMl}
                   onChange={e => setVolumeMl(e.target.value)}
                   placeholder="e.g. 50"
