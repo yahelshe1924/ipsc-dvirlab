@@ -98,7 +98,7 @@ export default function CalendarPage() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "http://localhost:3000/calendar",
+        redirectTo: "http://ipsc-dvirlab.vercel.app/calendar",
       },
     });
   }
