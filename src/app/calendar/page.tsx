@@ -21,7 +21,6 @@ export default function CalendarPage() {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load members + logged-in user
   useEffect(() => {
     supabase
       .from("members")
@@ -50,7 +49,6 @@ export default function CalendarPage() {
     });
   }, [supabase]);
 
-  // Load duties for visible month (+1 extra day for tomorrow lookups)
   const loadDuties = useCallback(
     async (y: number, m: number) => {
       setLoading(true);
@@ -104,38 +102,26 @@ export default function CalendarPage() {
   }
 
   async function handleSave(dateKey: string, patch: Partial<DutyAssignment>) {
-  console.log("handleSave dateKey:", dateKey);
-  console.log("handleSave patch:", patch);
+    console.log("handleSave dateKey:", dateKey);
+    console.log("handleSave patch:", patch);
 
-  const old = duties[dateKey];
-  const oldMemberId = old?.member_id ?? null;
-  const newMemberId = patch.member_id ?? null;
+    const old = duties[dateKey];
+    const oldMemberId = old?.member_id ?? null;
+    const newMemberId = patch.member_id ?? null;
 
-  const { data, error } = await supabase
-    .from("duty_assignments")
-    .upsert({ duty_date: dateKey, ...patch }, { onConflict: "duty_date" })
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from("duty_assignments")
+      .upsert({ duty_date: dateKey, ...patch }, { onConflict: "duty_date" })
+      .select()
+      .single();
 
-  console.log("save result data:", data);
-  console.log("save result error:", error);
+    console.log("save result data:", data);
+    console.log("save result error:", error);
 
-  if (error) {
-    console.error("Error saving duty:", error);
-    return;
-  }
-
-  if (oldMemberId !== newMemberId && loggedIn) {
-    await supabase.from("assignment_audit").insert({
-      duty_date: dateKey,
-      old_member_id: oldMemberId,
-      new_member_id: newMemberId,
-      changed_by_id: loggedIn.id,
-    });
-  }
-
-  await loadDuties(year, month);
-}
+    if (error) {
+      console.error("Error saving duty:", error);
+      return;
+    }
 
     if (oldMemberId !== newMemberId && loggedIn) {
       await supabase.from("assignment_audit").insert({
@@ -145,13 +131,14 @@ export default function CalendarPage() {
         changed_by_id: loggedIn.id,
       });
     }
+
+    await loadDuties(year, month);
   }
 
   async function handleRemoveAssignment(dateKey: string) {
     await handleSave(dateKey, { member_id: null, volume_ml: null, notes: "" });
   }
 
-  // Tomorrow assignee for WhatsApp message
   function getTomorrowAssigneeName(dateKey: string): string | null {
     const [y, m, d] = dateKey.split("-").map(Number);
     const tmr = new Date(y, m - 1, d + 1);
@@ -220,6 +207,7 @@ export default function CalendarPage() {
 
       {openKey && loggedIn && (
         <DayModal
+          key={openKey}
           dateKey={openKey}
           duty={duties[openKey] ?? null}
           members={members}
