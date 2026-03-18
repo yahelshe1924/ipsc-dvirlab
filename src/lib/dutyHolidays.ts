@@ -1,4 +1,4 @@
-// lib/dutyHolidays.ts
+// src/lib/dutyHolidays.ts
 import { HebrewCalendar } from "@hebcal/core";
 
 export type DutyHolidayType = "jewish" | "israeli";
@@ -66,7 +66,7 @@ function getJewishDutyHolidays(date: Date): DutyHolidayInfo[] {
   });
 
   const holidays: DutyHolidayInfo[] = events
-    .filter((ev) => sameLocalDate(ev.greg(), date))
+    .filter((ev) => sameLocalDate(ev.getDate().greg(), date))
     .map((ev) => {
       const nameEn = ev.getDesc();
       const nameHe = ev.render("he");
@@ -94,7 +94,7 @@ function getIsraeliDutyHolidays(date: Date): DutyHolidayInfo[] {
   });
 
   const holidays: DutyHolidayInfo[] = events
-    .filter((ev) => sameLocalDate(ev.greg(), date))
+    .filter((ev) => sameLocalDate(ev.getDate().greg(), date))
     .map((ev) => {
       const nameEn = ev.getDesc();
       const nameHe = ev.render("he");
