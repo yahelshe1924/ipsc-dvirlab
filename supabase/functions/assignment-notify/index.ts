@@ -1,21 +1,24 @@
 /**
  * supabase/functions/assignment-notify/index.ts
  * ------------------------------------------------
- * VERSION: V3-SELF-EMAIL-FIX
+ * VERSION: V4-SECONDARY-CALENDAR
  *
  * Behavior:
  * - No email is sent if the user changed their own assignment
  * - Calendar events ARE still created for self-assignments
+ * - All Google Calendar events are created in a secondary calendar
+ * - No reminders are set on the organizer side
  * - Extensive logs included for debugging
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = "V3-SELF-EMAIL-FIX";
+const VERSION = "V4-SECONDARY-CALENDAR";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL")!;
+const SUPABASE_URL = Deno.env.get("https://nlllwkeqslhctrwqeugu.supabase.co")!;
+const SERVICE_KEY = Deno.env.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGx3a2Vxc2xoY3Ryd3FldWd1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE0NDIzNywiZXhwIjoyMDg4NzIwMjM3fQ.YRtfeICq5z_3rE_MpqHnuf3hOgiyAW4Pl5rP6de6aLI")!;
+const FROM_EMAIL = Deno.env.get("yahelshe@gmail.com")!;
+const DUTY_CALENDAR_ID = Deno.env.get("31f938925d214c153f9f09512952c24a7ed82156743472e0ecdc279ff26f9988@group.calendar.google.com")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -26,7 +29,6 @@ async function getAccessToken(
   clientSecret: string,
   refreshToken: string
 ): Promise<string> {
-
   console.log(`[${VERSION}] Requesting OAuth token`);
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -52,7 +54,6 @@ async function sendEmail(
   body: string,
   accessToken: string
 ) {
-
   console.log(`[${VERSION}] Sending email → ${to}`);
 
   const message = [
@@ -89,11 +90,12 @@ async function createCalendarEvent(
   dutyDate: string,
   accessToken: string
 ): Promise<string | null> {
-
-  console.log(`[${VERSION}] Creating calendar event for ${attendeeEmail}`);
+  console.log(
+    `[${VERSION}] Creating calendar event for ${attendeeEmail} in ${DUTY_CALENDAR_ID}`
+  );
 
   const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(DUTY_CALENDAR_ID)}/events`,
     {
       method: "POST",
       headers: {
@@ -107,7 +109,7 @@ async function createCalendarEvent(
         attendees: [{ email: attendeeEmail }],
         reminders: {
           useDefault: false,
-          overrides: [{ method: "email", minutes: 60 }],
+          overrides: [],
         },
       }),
     }
@@ -115,8 +117,12 @@ async function createCalendarEvent(
 
   const data = await res.json();
 
-  console.log(`[${VERSION}] Calendar event created:`, data.id);
+  if (!res.ok) {
+    console.error(`[${VERSION}] Failed to create calendar event`, data);
+    return null;
+  }
 
+  console.log(`[${VERSION}] Calendar event created:`, data.id);
   return data.id ?? null;
 }
 
@@ -124,22 +130,27 @@ async function cancelCalendarEvent(
   eventId: string,
   accessToken: string
 ) {
+  console.log(
+    `[${VERSION}] Cancelling calendar event ${eventId} from ${DUTY_CALENDAR_ID}`
+  );
 
-  console.log(`[${VERSION}] Cancelling calendar event`, eventId);
-
-  await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(DUTY_CALENDAR_ID)}/events/${encodeURIComponent(eventId)}`,
     {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     }
   );
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`[${VERSION}] Failed to cancel calendar event`, text);
+  }
 }
 
 /* ───────────────── Main handler ───────────────── */
 
 Deno.serve(async (req) => {
-
   console.log(`[${VERSION}] Function triggered`);
 
   const payload = await req.json();
@@ -212,13 +223,9 @@ Deno.serve(async (req) => {
   /* ───────────────────────────── */
 
   if (oldMember) {
-
     if (old_member_id === changed_by_id) {
-
       console.log(`[${VERSION}] Skipping removal email (self-change)`);
-
     } else {
-
       await sendEmail(
         oldMember.email,
         `iPSC duty change for ${duty_date}`,
@@ -250,13 +257,9 @@ You no longer need to come in on that date.
   let newEventId: string | null = null;
 
   if (newMember) {
-
     if (new_member_id === changed_by_id) {
-
       console.log(`[${VERSION}] Self assignment → no email`);
-
     } else {
-
       await sendEmail(
         newMember.email,
         `You're assigned: iPSC medium change on ${duty_date}`,
