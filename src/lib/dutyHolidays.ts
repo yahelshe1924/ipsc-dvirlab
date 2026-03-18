@@ -1,4 +1,3 @@
-// src/lib/dutyHolidays.ts
 import { HebrewCalendar } from "@hebcal/core";
 
 export type DutyHolidayType = "jewish" | "israeli";
@@ -10,14 +9,14 @@ export type DutyHolidayInfo = {
   type: DutyHolidayType;
 };
 
-const EXCLUDED_JEWISH_HOLIDAYS = new Set<string>([
-  "rosh chodesh",
-]);
-
 const INCLUDED_ISRAELI_HOLIDAYS = new Set<string>([
   "yom hazikaron",
   "yom haatzmaut",
 ]);
+
+function isExcludedJewishHoliday(key: string): boolean {
+  return key.startsWith("rosh chodesh");
+}
 
 function normalizeHolidayName(name: string): string {
   return name
@@ -79,7 +78,7 @@ function getJewishDutyHolidays(date: Date): DutyHolidayInfo[] {
         type: "jewish" as const,
       };
     })
-    .filter((holiday) => !EXCLUDED_JEWISH_HOLIDAYS.has(holiday.key));
+    .filter((holiday) => !isExcludedJewishHoliday(holiday.key));
 
   return uniqueByKey(holidays);
 }
@@ -115,7 +114,6 @@ function getIsraeliDutyHolidays(date: Date): DutyHolidayInfo[] {
 export function getDutyHolidays(date: Date): DutyHolidayInfo[] {
   const jewish = getJewishDutyHolidays(date);
   const israeli = getIsraeliDutyHolidays(date);
-
   return uniqueByKey([...jewish, ...israeli]);
 }
 
