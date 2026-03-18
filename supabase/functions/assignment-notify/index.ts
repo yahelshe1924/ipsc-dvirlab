@@ -15,10 +15,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const VERSION = "V4-SECONDARY-CALENDAR";
 
-const SUPABASE_URL = Deno.env.get("https://nlllwkeqslhctrwqeugu.supabase.co")!;
-const SERVICE_KEY = Deno.env.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbGx3a2Vxc2xoY3Ryd3FldWd1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE0NDIzNywiZXhwIjoyMDg4NzIwMjM3fQ.YRtfeICq5z_3rE_MpqHnuf3hOgiyAW4Pl5rP6de6aLI")!;
-const FROM_EMAIL = Deno.env.get("yahelshe@gmail.com")!;
-const DUTY_CALENDAR_ID = Deno.env.get("31f938925d214c153f9f09512952c24a7ed82156743472e0ecdc279ff26f9988@group.calendar.google.com")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL")!;
+const DUTY_CALENDAR_ID = Deno.env.get("DUTY_CALENDAR_ID")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
