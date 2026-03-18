@@ -19,6 +19,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL")!;
 const DUTY_CALENDAR_ID = Deno.env.get("DUTY_CALENDAR_ID")!;
+console.log(`[${VERSION}] DUTY_CALENDAR_ID=`, DUTY_CALENDAR_ID);
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
