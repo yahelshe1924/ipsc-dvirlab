@@ -232,11 +232,7 @@ Deno.serve(async (req) => {
         `iPSC duty change for ${duty_date}`,
         `Hi ${oldMember.full_name},
 
-VERSION ${VERSION}
-
 Your iPSC medium-change duty on ${duty_date} has been reassigned by ${changerName}.
-
-You no longer need to come in on that date.
 
 — iPSC-DvirLab`,
         gmailToken
