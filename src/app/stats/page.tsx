@@ -35,7 +35,7 @@ export default function StatsPage() {
       .then(({ data }) => {
         if (data) setMembers(data as Member[]);
       });
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     const from = `${year}-${String(month + 1).padStart(2, "0")}-01`;
@@ -52,6 +52,7 @@ export default function StatsPage() {
       });
   }, [year, month, supabase]);
 
+  // Build stats
   const stats: MemberStats[] = (() => {
     const map: Record<string, MemberStats> = {};
 
@@ -70,6 +71,7 @@ export default function StatsPage() {
     });
 
     duties.forEach((d) => {
+      // Medium stats
       if (d.member_id) {
         const s = map[d.member_id];
         if (s) {
@@ -83,6 +85,7 @@ export default function StatsPage() {
         }
       }
 
+      // Split stats
       if (d.split_assignee_id) {
         const s = map[d.split_assignee_id];
         if (s) {
@@ -114,8 +117,10 @@ export default function StatsPage() {
       });
   })();
 
+  const splitStats = stats.filter((s) => s.split_assigned_total > 0);
+
   const maxMediumTotal = Math.max(...stats.map((s) => s.medium_total), 1);
-  const maxSplitAssigned = Math.max(...stats.map((s) => s.split_assigned_total), 1);
+  const maxSplitAssigned = Math.max(...splitStats.map((s) => s.split_assigned_total), 1);
 
   function exportCSV() {
     const header = [
@@ -256,10 +261,10 @@ export default function StatsPage() {
       {/* Split duties bar chart */}
       <div style={card}>
         <div style={sectionLabel}>Split duties this month</div>
-        {stats.length === 0 ? (
+        {splitStats.length === 0 ? (
           <p style={{ color: "#94a3b8", fontSize: 13 }}>No split assignments recorded yet.</p>
         ) : (
-          stats.map((s) => {
+          splitStats.map((s) => {
             const c = getColor(s.member.color_index);
             return (
               <div
