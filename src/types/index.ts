@@ -48,7 +48,12 @@ export interface AssignmentAudit {
 // Used in statistics screen
 export interface MemberStats {
   member: Member;
-  weekdays: number;
-  weekend_holiday: number;
-  total: number;
+
+  medium_weekdays: number;
+  medium_weekend_holiday: number;
+  medium_total: number;
+
+  split_assigned_total: number;
+  split_completed_total: number;
+  split_plates_total: number;
 }
