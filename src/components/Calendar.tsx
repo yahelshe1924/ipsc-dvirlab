@@ -1,15 +1,6 @@
 "use client";
 /**
  * components/Calendar.tsx
- * -----------------------
- * Monthly calendar — the primary screen.
- * Each cell shows:
- *   • Day number
- *   • Duty holiday name (if any)
- *   • Medium-change assignee name pill
- *   • Split assignee pill + passage number (if exists)
- *   • Volume reported badge (✓ N mL)
- *   • "pending" badge for today if no volume yet
  */
 
 import { getDutyHolidayLabel, isDutyHoliday } from "@/lib/dutyHolidays";
@@ -156,46 +147,57 @@ export default function Calendar({
                 {holiday && <span style={styles.holidayTag}>{holiday}</span>}
               </div>
 
-              {member && (
-                <div
-                  style={{
-                    ...styles.assigneePill,
-                    background: color!.bg,
-                    color: color!.text,
-                  }}
-                  title={`Medium change: ${member.full_name}`}
-                >
-                  M: {member.full_name.split(" ")[0]}
+              <div style={styles.daySections}>
+                <div style={styles.topSection}>
+                  {member && (
+                    <div
+                      style={{
+                        ...styles.assigneePill,
+                        background: color!.bg,
+                        color: color!.text,
+                      }}
+                      title={`Medium change: ${member.full_name}`}
+                    >
+                      {member.full_name.split(" ")[0]}
+                    </div>
+                  )}
+
+                  {reported && <div style={styles.volumeBadge}>✓ {duty!.volume_ml} mL</div>}
+
+                  {isToday && duty?.member_id && !reported && (
+                    <div style={styles.pendingBadge}>pending</div>
+                  )}
                 </div>
-              )}
 
-              {splitMember && (
-                <div
-                  style={{
-                    ...styles.splitPill,
-                    background: splitColor!.bg,
-                    color: splitColor!.text,
-                  }}
-                  title={`Split: ${splitMember.full_name}${
-                    duty?.split_passage_number != null ? ` (P${duty.split_passage_number})` : ""
-                  }`}
-                >
-                  S: {splitMember.full_name.split(" ")[0]}
-                  {duty?.split_passage_number != null ? ` · P${duty.split_passage_number}` : ""}
+                {(member || splitMember) && <div style={styles.separator}>---------</div>}
+
+                <div style={styles.bottomSection}>
+                  {splitMember && (
+                    <div
+                      style={{
+                        ...styles.splitPill,
+                        background: splitColor!.bg,
+                        color: splitColor!.text,
+                      }}
+                      title={`Split: ${splitMember.full_name}`}
+                    >
+                      {splitMember.full_name.split(" ")[0]}
+                    </div>
+                  )}
+
+                  {duty?.split_passage_number != null && (
+                    <div style={styles.splitMeta}>P{duty.split_passage_number}</div>
+                  )}
+
+                  {duty?.split_plate_count != null && (
+                    <div style={styles.splitMeta}>{duty.split_plate_count} plates</div>
+                  )}
+
+                  {duty?.split_completed && (
+                    <div style={styles.splitDoneBadge}>split done</div>
+                  )}
                 </div>
-              )}
-
-              {duty?.split_completed && (
-                <div style={styles.splitDoneBadge}>
-                  split done
-                </div>
-              )}
-
-              {reported && <div style={styles.volumeBadge}>✓ {duty!.volume_ml} mL</div>}
-
-              {isToday && duty?.member_id && !reported && (
-                <div style={styles.pendingBadge}>pending</div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -208,10 +210,7 @@ export default function Calendar({
           { bg: "#f9fafb", border: "1.5px solid #e2e8f0", label: "Fri / Sat" },
           { bg: "#f8fafc", border: "1.5px solid #f1f5f9", label: "Past" },
         ].map((l) => (
-          <div
-            key={l.label}
-            style={{ display: "flex", alignItems: "center", gap: 5 }}
-          >
+          <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <div
               style={{
                 width: 12,
@@ -271,7 +270,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 0",
   },
   cell: {
-    minHeight: 96,
+    minHeight: 110,
     borderRadius: 10,
     padding: "6px 7px",
     transition: "box-shadow 0.15s",
@@ -283,6 +282,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "flex-start",
     gap: 4,
     flexWrap: "wrap",
+    marginBottom: 4,
   },
   dayNum: {
     fontSize: 13,
@@ -302,8 +302,34 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+  daySections: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  topSection: {
+    minHeight: 26,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
+  },
+  separator: {
+    fontSize: 9,
+    color: "#cbd5e1",
+    lineHeight: 1,
+    letterSpacing: "0.05em",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+  },
+  bottomSection: {
+    minHeight: 30,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
+  },
   assigneePill: {
-    marginTop: 3,
     display: "inline-block",
     borderRadius: 999,
     padding: "1px 7px",
@@ -315,7 +341,6 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
   splitPill: {
-    marginTop: 3,
     display: "inline-block",
     borderRadius: 999,
     padding: "1px 7px",
@@ -327,8 +352,12 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
     border: "1px dashed rgba(15,23,42,0.12)",
   },
+  splitMeta: {
+    fontSize: 9,
+    color: "#475569",
+    fontWeight: 700,
+  },
   splitDoneBadge: {
-    marginTop: 3,
     fontSize: 9,
     color: "#0891b2",
     fontWeight: 800,
@@ -336,13 +365,11 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.06em",
   },
   volumeBadge: {
-    marginTop: 3,
     fontSize: 10,
     color: "#059669",
     fontWeight: 700,
   },
   pendingBadge: {
-    marginTop: 2,
     fontSize: 9,
     color: "#f59e0b",
     fontWeight: 800,

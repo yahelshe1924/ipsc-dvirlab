@@ -1,11 +1,6 @@
 "use client";
 /**
  * components/DayModal.tsx
- * -----------------------
- * Opens when user clicks a calendar day.
- * • Past days: read-only view
- * • Current / future days: full edit (assign, volume, notes, WhatsApp compose)
- * • Optional split duty per day
  */
 
 import { useEffect, useState } from "react";
@@ -17,7 +12,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const WDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 interface Props {
-  dateKey: string; // "YYYY-MM-DD"
+  dateKey: string;
   duty: DutyAssignment | null;
   members: Member[];
   loggedInMember: Member;
@@ -96,17 +91,12 @@ export default function DayModal({
       notes,
 
       split_assignee_id: hasSplit ? splitAssigneeId || null : null,
-      split_passage_number:
-        hasSplit && splitPassageNumber !== "" ? Number(splitPassageNumber) : null,
 
-      split_plate_count:
-        hasSplit && splitPlateCount !== "" ? Number(splitPlateCount) : null,
-
+      split_passage_number: hasSplit ? duty?.split_passage_number ?? null : null,
+      split_plate_count: hasSplit ? duty?.split_plate_count ?? null : null,
       split_completed: hasSplit ? duty?.split_completed ?? false : false,
       split_completed_at: hasSplit ? duty?.split_completed_at ?? null : null,
     };
-
-    console.log("DayModal save payload:", payload);
 
     setSaving(true);
     await onSave(dateKey, payload);
@@ -235,15 +225,7 @@ export default function DayModal({
             </div>
 
             {assignedMember ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 6,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                 <div
                   style={{
                     background: getColor(assignedMember.color_index).bg,
@@ -256,26 +238,14 @@ export default function DayModal({
                 >
                   {assignedMember.full_name}
                 </div>
-                <span style={{ color: "#64748b", fontSize: 13 }}>
-                  was assigned for medium change
-                </span>
+                <span style={{ color: "#64748b", fontSize: 13 }}>was assigned for medium change</span>
               </div>
             ) : (
-              <p style={{ color: "#cbd5e1", fontSize: 14 }}>
-                No one was assigned for medium change.
-              </p>
+              <p style={{ color: "#cbd5e1", fontSize: 14 }}>No one was assigned for medium change.</p>
             )}
 
             {splitAssignedMember && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 6,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                 <div
                   style={{
                     background: getColor(splitAssignedMember.color_index).bg,
@@ -314,14 +284,7 @@ export default function DayModal({
             )}
 
             {duty?.notes && (
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontStyle: "italic",
-                  margin: "4px 0",
-                }}
-              >
+              <p style={{ fontSize: 12, color: "#64748b", fontStyle: "italic", margin: "4px 0" }}>
                 "{duty.notes}"
               </p>
             )}
@@ -344,11 +307,7 @@ export default function DayModal({
               </select>
 
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  style={chipButton}
-                  onClick={() => setSelectedMemberId(loggedInMember.id)}
-                >
+                <button type="button" style={chipButton} onClick={() => setSelectedMemberId(loggedInMember.id)}>
                   Assign me
                 </button>
 
@@ -411,32 +370,9 @@ export default function DayModal({
                     </select>
 
                     <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        style={chipButton}
-                        onClick={() => setSplitAssigneeId(loggedInMember.id)}
-                      >
+                      <button type="button" style={chipButton} onClick={() => setSplitAssigneeId(loggedInMember.id)}>
                         Assign me to split
                       </button>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={label}>Passage number</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={prefixBadge}>P</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={splitPassageNumber}
-                        onChange={(e) => setSplitPassageNumber(e.target.value)}
-                        placeholder="e.g. 4"
-                        style={{ ...input, width: 120 }}
-                      />
-                    </div>
-                    <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
-                      Will be displayed as {splitPassageNumber ? `P${splitPassageNumber}` : "P#"}
                     </div>
                   </div>
 
@@ -450,15 +386,46 @@ export default function DayModal({
                         border: "1px solid #e2e8f0",
                       }}
                     >
-                      <label style={label}>Plates count (after split)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={splitPlateCount}
-                        onChange={(e) => setSplitPlateCount(e.target.value)}
-                        placeholder="e.g. 6"
-                        style={{ ...input, width: 120, marginBottom: 10 }}
-                      />
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          color: "#0e7490",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          marginBottom: 10,
+                        }}
+                      >
+                        Split execution
+                      </div>
+
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={label}>Passage number</label>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={prefixBadge}>P</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={splitPassageNumber}
+                            onChange={(e) => setSplitPassageNumber(e.target.value)}
+                            placeholder="e.g. 4"
+                            style={{ ...input, width: 120 }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={label}>Plates count (after split)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={splitPlateCount}
+                          onChange={(e) => setSplitPlateCount(e.target.value)}
+                          placeholder="e.g. 6"
+                          style={{ ...input, width: 120 }}
+                        />
+                      </div>
 
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button
