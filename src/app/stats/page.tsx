@@ -50,9 +50,8 @@ export default function StatsPage() {
       .then(({ data }) => {
         if (data) setDuties(data as DutyAssignment[]);
       });
-  }, [year, month]);
+  }, [year, month, supabase]);
 
-  // Build stats
   const stats: MemberStats[] = (() => {
     const map: Record<string, MemberStats> = {};
 
@@ -71,7 +70,6 @@ export default function StatsPage() {
     });
 
     duties.forEach((d) => {
-      // Medium stats
       if (d.member_id) {
         const s = map[d.member_id];
         if (s) {
@@ -85,7 +83,6 @@ export default function StatsPage() {
         }
       }
 
-      // Split stats
       if (d.split_assignee_id) {
         const s = map[d.split_assignee_id];
         if (s) {
@@ -117,7 +114,8 @@ export default function StatsPage() {
       });
   })();
 
-  const maxTotal = Math.max(...stats.map((s) => s.medium_total), 1);
+  const maxMediumTotal = Math.max(...stats.map((s) => s.medium_total), 1);
+  const maxSplitAssigned = Math.max(...stats.map((s) => s.split_assigned_total), 1);
 
   function exportCSV() {
     const header = [
@@ -204,7 +202,7 @@ export default function StatsPage() {
             const c = getColor(s.member.color_index);
             return (
               <div
-                key={s.member.id}
+                key={`medium-${s.member.id}`}
                 style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}
               >
                 <div
@@ -231,7 +229,7 @@ export default function StatsPage() {
                 >
                   <div
                     style={{
-                      width: `${(s.medium_total / maxTotal) * 100}%`,
+                      width: `${(s.medium_total / maxMediumTotal) * 100}%`,
                       height: "100%",
                       background: c.bg,
                       borderRadius: 999,
@@ -248,6 +246,79 @@ export default function StatsPage() {
                       </span>
                     )}
                   </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Split duties bar chart */}
+      <div style={card}>
+        <div style={sectionLabel}>Split duties this month</div>
+        {stats.length === 0 ? (
+          <p style={{ color: "#94a3b8", fontSize: 13 }}>No split assignments recorded yet.</p>
+        ) : (
+          stats.map((s) => {
+            const c = getColor(s.member.color_index);
+            return (
+              <div
+                key={`split-${s.member.id}`}
+                style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}
+              >
+                <div
+                  style={{
+                    width: 88,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#475569",
+                    textAlign: "right",
+                    flexShrink: 0,
+                  }}
+                >
+                  {s.member.full_name.split(" ")[0]}
+                </div>
+
+                <div
+                  style={{
+                    flex: 1,
+                    background: "#f1f5f9",
+                    borderRadius: 999,
+                    height: 24,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${(s.split_assigned_total / maxSplitAssigned) * 100}%`,
+                      height: "100%",
+                      background: c.bg,
+                      borderRadius: 999,
+                      minWidth: s.split_assigned_total > 0 ? 28 : 0,
+                      display: "flex",
+                      alignItems: "center",
+                      paddingLeft: s.split_assigned_total > 0 ? 10 : 0,
+                      transition: "width 0.6s ease",
+                    }}
+                  >
+                    {s.split_assigned_total > 0 && (
+                      <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>
+                        {s.split_assigned_total}/{s.split_completed_total}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    width: 64,
+                    textAlign: "right",
+                    fontSize: 11,
+                    color: "#64748b",
+                    flexShrink: 0,
+                  }}
+                >
+                  {s.split_plates_total} plates
                 </div>
               </div>
             );
