@@ -39,13 +39,7 @@ export default function HomePage() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 4 }}>iPSC-DvirLab</h1>
-      <p style={{ marginTop: 0, color: "#555" }}>
-        Stem Cell Lab Management Platform
-      </p>
-
-      {/* Quick Actions */}
-      <div style={{ marginTop: 30 }}>
+      <div style={{ marginTop: 8 }}>
         <h2>Quick Actions</h2>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
@@ -67,7 +61,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Today’s Duty */}
       <div style={{ marginTop: 40 }}>
         <h2>Today’s Duty</h2>
 
