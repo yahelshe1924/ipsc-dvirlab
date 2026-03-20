@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "iPSC-DvirLab",
-  description: "Lab duty roster for iPSC medium changes",
+  description: "Stem cell lab management platform for duties, passages, tracking, and lab workflows",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
             <div style={headerInner}>
               <div style={brandBlock}>
                 <div style={brandTitle}>iPSC-DvirLab</div>
-                <div style={brandSubtitle}>Medium change duty manager</div>
+                <div style={brandSubtitle}>Stem Cell Lab Management Platform</div>
               </div>
 
               <nav style={navStyle}>
@@ -29,6 +29,9 @@ export default function RootLayout({
                 </Link>
                 <Link href="/people" style={navLink}>
                   People
+                </Link>
+                <Link href="/splits" style={navLink}>
+                  Splits
                 </Link>
                 <Link href="/stats" style={navLink}>
                   Stats
