@@ -5,9 +5,10 @@
  * Opens when user clicks a calendar day.
  * • Past days: read-only view
  * • Current / future days: full edit (assign, volume, notes, WhatsApp compose)
+ * • NEW: optional Split duty per day
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getHolidayName } from "@/lib/holidays";
 import { getColor } from "@/lib/colors";
 import type { DutyAssignment, Member } from "@/types";
@@ -42,37 +43,71 @@ export default function DayModal({
     ? members.find(m => m.id === duty.member_id) ?? null
     : null;
 
+  const splitAssignedMember = duty?.split_assignee_id
+    ? members.find(m => m.id === duty.split_assignee_id) ?? null
+    : null;
+
   const [selectedMemberId, setSelectedMemberId] = useState<string>(duty?.member_id ?? "");
-  const [volumeMl, setVolumeMl]   = useState<string>(duty?.volume_ml != null ? String(duty.volume_ml) : "");
-  const [notes, setNotes]         = useState<string>(duty?.notes ?? "");
-  const [saving, setSaving]       = useState(false);
+  const [volumeMl, setVolumeMl] = useState<string>(
+    duty?.volume_ml != null ? String(duty.volume_ml) : ""
+  );
+  const [notes, setNotes] = useState<string>(duty?.notes ?? "");
+
+  // NEW: split state
+  const [hasSplit, setHasSplit] = useState<boolean>(!!duty?.split_assignee_id);
+  const [splitAssigneeId, setSplitAssigneeId] = useState<string>(duty?.split_assignee_id ?? "");
+  const [splitPassageNumber, setSplitPassageNumber] = useState<string>(
+    duty?.split_passage_number != null ? String(duty.split_passage_number) : ""
+  );
+
+  const [saving, setSaving] = useState(false);
   const [whatsappCopied, setWhatsappCopied] = useState(false);
 
   const activePeople = members.filter(m => m.active);
 
+  useEffect(() => {
+    setSelectedMemberId(duty?.member_id ?? "");
+    setVolumeMl(duty?.volume_ml != null ? String(duty.volume_ml) : "");
+    setNotes(duty?.notes ?? "");
+
+    setHasSplit(!!duty?.split_assignee_id);
+    setSplitAssigneeId(duty?.split_assignee_id ?? "");
+    setSplitPassageNumber(
+      duty?.split_passage_number != null ? String(duty.split_passage_number) : ""
+    );
+  }, [duty, dateKey]);
+
   async function handleSave() {
-  const payload = {
-    member_id: selectedMemberId || null,
-    volume_ml: volumeMl !== "" ? Number(volumeMl) : null,
-    notes,
-  };
+    const payload: Partial<DutyAssignment> = {
+      member_id: selectedMemberId || null,
+      volume_ml: volumeMl !== "" ? Number(volumeMl) : null,
+      notes,
 
-  console.log("DayModal save payload:", payload);
+      split_assignee_id: hasSplit ? (splitAssigneeId || null) : null,
+      split_passage_number:
+        hasSplit && splitPassageNumber !== ""
+          ? Number(splitPassageNumber)
+          : null,
+    };
 
-  setSaving(true);
-  await onSave(dateKey, payload);
-  setSaving(false);
-  onClose();
-}
+    console.log("DayModal save payload:", payload);
+
+    setSaving(true);
+    await onSave(dateKey, payload);
+    setSaving(false);
+    onClose();
+  }
 
   async function handleRemove() {
     await onRemoveAssignment(dateKey);
     onClose();
   }
 
-  // Build WhatsApp completion message
+  // Build WhatsApp completion message for medium change
   const reporterName = members.find(m => m.id === selectedMemberId)?.full_name
-    ?? assignedMember?.full_name ?? loggedInMember.full_name;
+    ?? assignedMember?.full_name
+    ?? loggedInMember.full_name;
+
   const whatsappText = volumeMl
     ? `Today's iPSC medium change was completed by ${reporterName}. Volume changed: ${volumeMl} mL. ` +
       (tomorrowAssigneeName
@@ -115,30 +150,59 @@ export default function DayModal({
         </div>
 
         {isPast ? (
-          /* ── READ-ONLY ──────────────────────────────────── */
+          /* READ-ONLY */
           <div style={{ background:"#f8fafc", borderRadius:12, padding:16 }}>
             <div style={{ fontSize:11, color:"#94a3b8", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>
-              🔒 Past date — read only
+              Past date — read only
             </div>
+
             {assignedMember ? (
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                <div style={{
-                  background: getColor(assignedMember.color_index).bg,
-                  color: getColor(assignedMember.color_index).text,
-                  borderRadius:999, padding:"2px 10px", fontSize:13, fontWeight:700,
-                }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+                <div
+                  style={{
+                    background: getColor(assignedMember.color_index).bg,
+                    color: getColor(assignedMember.color_index).text,
+                    borderRadius:999,
+                    padding:"2px 10px",
+                    fontSize:13,
+                    fontWeight:700,
+                  }}
+                >
                   {assignedMember.full_name}
                 </div>
-                <span style={{ color:"#64748b", fontSize:13 }}>was assigned</span>
+                <span style={{ color:"#64748b", fontSize:13 }}>was assigned for medium change</span>
               </div>
             ) : (
-              <p style={{ color:"#cbd5e1", fontSize:14 }}>No one was assigned.</p>
+              <p style={{ color:"#cbd5e1", fontSize:14 }}>No one was assigned for medium change.</p>
             )}
+
+            {splitAssignedMember && (
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+                <div
+                  style={{
+                    background: getColor(splitAssignedMember.color_index).bg,
+                    color: getColor(splitAssignedMember.color_index).text,
+                    borderRadius:999,
+                    padding:"2px 10px",
+                    fontSize:13,
+                    fontWeight:700,
+                  }}
+                >
+                  {splitAssignedMember.full_name}
+                </div>
+                <span style={{ color:"#64748b", fontSize:13 }}>
+                  was assigned for split
+                  {duty?.split_passage_number != null ? ` (P${duty.split_passage_number})` : ""}
+                </span>
+              </div>
+            )}
+
             {duty?.volume_ml != null && (
               <p style={{ fontSize:14, color:"#0f172a", margin:"4px 0" }}>
-                ✓ <strong>{duty.volume_ml} mL</strong> reported
+                <strong>{duty.volume_ml} mL</strong> reported
               </p>
             )}
+
             {duty?.notes && (
               <p style={{ fontSize:12, color:"#64748b", fontStyle:"italic", margin:"4px 0" }}>
                 "{duty.notes}"
@@ -146,9 +210,9 @@ export default function DayModal({
             )}
           </div>
         ) : (
-          /* ── EDITABLE ───────────────────────────────────── */
+          /* EDITABLE */
           <>
-            {/* Assignee */}
+            {/* Medium-change assignee */}
             <div style={{ marginBottom:16 }}>
               <label style={label}>Assigned person</label>
               <select
@@ -161,6 +225,7 @@ export default function DayModal({
                   <option key={p.id} value={p.id}>{p.full_name}</option>
                 ))}
               </select>
+
               <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>
                 <button
                   style={chipButton}
@@ -168,6 +233,7 @@ export default function DayModal({
                 >
                   Assign me
                 </button>
+
                 {selectedMemberId && (
                   <button
                     style={{ ...chipButton, color:"#ef4444", borderColor:"#fca5a5" }}
@@ -179,12 +245,74 @@ export default function DayModal({
               </div>
             </div>
 
+            {/* NEW: Split duty */}
+            <div style={{ marginBottom:16, padding:14, border:"1px solid #e2e8f0", borderRadius:12, background:"#f8fafc" }}>
+              <label style={{ ...label, marginBottom:10 }}>Optional split duty</label>
+
+              <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:14, color:"#0f172a", marginBottom:12 }}>
+                <input
+                  type="checkbox"
+                  checked={hasSplit}
+                  onChange={(e) => setHasSplit(e.target.checked)}
+                />
+                Add split duty for this day
+              </label>
+
+              {hasSplit && (
+                <>
+                  <div style={{ marginBottom:12 }}>
+                    <label style={label}>Split assignee</label>
+                    <select
+                      value={splitAssigneeId}
+                      onChange={(e) => setSplitAssigneeId(e.target.value)}
+                      style={select}
+                    >
+                      <option value="">— Select split assignee —</option>
+                      {activePeople.map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
+                    </select>
+
+                    <div style={{ display:"flex", gap:8, marginTop:8, flexWrap:"wrap" }}>
+                      <button
+                        style={chipButton}
+                        onClick={() => setSplitAssigneeId(loggedInMember.id)}
+                      >
+                        Assign me to split
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={label}>Passage number</label>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={prefixBadge}>P</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={splitPassageNumber}
+                        onChange={(e) => setSplitPassageNumber(e.target.value)}
+                        placeholder="e.g. 4"
+                        style={{ ...input, width:120 }}
+                      />
+                    </div>
+                    <div style={{ marginTop:6, fontSize:12, color:"#64748b" }}>
+                      Will be displayed as {splitPassageNumber ? `P${splitPassageNumber}` : "P#"}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Volume */}
             <div style={{ marginBottom:16 }}>
               <label style={label}>Volume changed (mL)</label>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <input
-                  type="number" min="0" step="0.5"
+                  type="number"
+                  min="0"
+                  step="0.5"
                   value={volumeMl}
                   onChange={e => setVolumeMl(e.target.value)}
                   placeholder="e.g. 50"
@@ -208,19 +336,22 @@ export default function DayModal({
               />
             </div>
 
-            {/* WhatsApp message – appears once volume is entered */}
+            {/* WhatsApp message – medium change only for now */}
             {whatsappText && (
               <div style={whatsappBox}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                   <span style={{ fontSize:11, fontWeight:800, color:"#15803d", textTransform:"uppercase", letterSpacing:"0.06em" }}>
-                    📱 WhatsApp message
+                    WhatsApp message
                   </span>
                   <div style={{ display:"flex", gap:6 }}>
                     <button onClick={copyWhatsapp} style={waBtn}>
-                      {whatsappCopied ? "✓ Copied!" : "Copy"}
+                      {whatsappCopied ? "Copied" : "Copy"}
                     </button>
-                    <button onClick={openWhatsapp} style={{ ...waBtn, background:"#16a34a", color:"#fff", borderColor:"#16a34a" }}>
-                      Open WA ↗
+                    <button
+                      onClick={openWhatsapp}
+                      style={{ ...waBtn, background:"#16a34a", color:"#fff", borderColor:"#16a34a" }}
+                    >
+                      Open WA
                     </button>
                   </div>
                 </div>
@@ -235,7 +366,7 @@ export default function DayModal({
               disabled={saving}
               style={saveBtn}
             >
-              {saving ? "Saving…" : "Save changes"}
+              {saving ? "Saving..." : "Save changes"}
             </button>
           </>
         )}
@@ -244,49 +375,133 @@ export default function DayModal({
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// Styles
 const overlay: React.CSSProperties = {
-  position:"fixed", inset:0, background:"rgba(10,15,30,0.55)",
-  backdropFilter:"blur(4px)", display:"flex", alignItems:"center",
-  justifyContent:"center", zIndex:200, padding:16,
-};
-const modal: React.CSSProperties = {
-  background:"#fff", borderRadius:18, padding:28, width:"100%", maxWidth:440,
-  boxShadow:"0 24px 64px rgba(0,0,0,0.18)", maxHeight:"90vh", overflowY:"auto",
-};
-const closeBtn: React.CSSProperties = {
-  background:"#f1f5f9", border:"none", borderRadius:8,
-  width:32, height:32, fontSize:20, cursor:"pointer", color:"#64748b",
-};
-const holidayBadge: React.CSSProperties = {
-  display:"inline-block", marginTop:4, fontSize:11, fontWeight:700,
-  color:"#92400e", background:"#fef3c7", borderRadius:6,
-  padding:"2px 8px", letterSpacing:"0.04em",
-};
-const label: React.CSSProperties = {
-  display:"block", fontSize:11, fontWeight:700, color:"#475569",
-  textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6,
-};
-const input: React.CSSProperties = {
-  border:"1.5px solid #e2e8f0", borderRadius:8, padding:"8px 12px",
-  fontSize:14, color:"#0f172a", outline:"none", boxSizing:"border-box",
-  fontFamily:"inherit",
-};
-const select: React.CSSProperties = { ...input, width:"100%", background:"#fff", cursor:"pointer" };
-const chipButton: React.CSSProperties = {
-  padding:"5px 12px", borderRadius:999, border:"1.5px solid #e2e8f0",
-  background:"#f8fafc", fontSize:12, fontWeight:600, cursor:"pointer", color:"#475569",
-};
-const whatsappBox: React.CSSProperties = {
-  background:"#f0fdf4", borderRadius:12, padding:14, marginBottom:18,
-  border:"1px solid #bbf7d0",
-};
-const waBtn: React.CSSProperties = {
-  padding:"4px 10px", borderRadius:8, border:"1.5px solid #86efac",
-  background:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", color:"#15803d",
-};
-const saveBtn: React.CSSProperties = {
-  width:"100%", padding:"13px 0", background:"#0e7490", color:"#fff",
-  border:"none", borderRadius:12, fontSize:14, fontWeight:700, cursor:"pointer",
+  position:"fixed",
+  inset:0,
+  background:"rgba(10,15,30,0.55)",
+  backdropFilter:"blur(4px)",
+  display:"flex",
+  alignItems:"center",
+  justifyContent:"center",
+  zIndex:200,
+  padding:16,
 };
 
+const modal: React.CSSProperties = {
+  background:"#fff",
+  borderRadius:18,
+  padding:28,
+  width:"100%",
+  maxWidth:440,
+  boxShadow:"0 24px 64px rgba(0,0,0,0.18)",
+  maxHeight:"90vh",
+  overflowY:"auto",
+};
+
+const closeBtn: React.CSSProperties = {
+  background:"#f1f5f9",
+  border:"none",
+  borderRadius:8,
+  width:32,
+  height:32,
+  fontSize:20,
+  cursor:"pointer",
+  color:"#64748b",
+};
+
+const holidayBadge: React.CSSProperties = {
+  display:"inline-block",
+  marginTop:4,
+  fontSize:11,
+  fontWeight:700,
+  color:"#92400e",
+  background:"#fef3c7",
+  borderRadius:6,
+  padding:"2px 8px",
+  letterSpacing:"0.04em",
+};
+
+const label: React.CSSProperties = {
+  display:"block",
+  fontSize:11,
+  fontWeight:700,
+  color:"#475569",
+  textTransform:"uppercase",
+  letterSpacing:"0.07em",
+  marginBottom:6,
+};
+
+const input: React.CSSProperties = {
+  border:"1.5px solid #e2e8f0",
+  borderRadius:8,
+  padding:"8px 12px",
+  fontSize:14,
+  color:"#0f172a",
+  outline:"none",
+  boxSizing:"border-box",
+  fontFamily:"inherit",
+};
+
+const select: React.CSSProperties = {
+  ...input,
+  width:"100%",
+  background:"#fff",
+  cursor:"pointer",
+};
+
+const chipButton: React.CSSProperties = {
+  padding:"5px 12px",
+  borderRadius:999,
+  border:"1.5px solid #e2e8f0",
+  background:"#f8fafc",
+  fontSize:12,
+  fontWeight:600,
+  cursor:"pointer",
+  color:"#475569",
+};
+
+const prefixBadge: React.CSSProperties = {
+  minWidth:32,
+  height:36,
+  display:"inline-flex",
+  alignItems:"center",
+  justifyContent:"center",
+  border:"1.5px solid #e2e8f0",
+  borderRadius:8,
+  background:"#fff",
+  color:"#334155",
+  fontSize:14,
+  fontWeight:700,
+};
+
+const whatsappBox: React.CSSProperties = {
+  background:"#f0fdf4",
+  borderRadius:12,
+  padding:14,
+  marginBottom:18,
+  border:"1px solid #bbf7d0",
+};
+
+const waBtn: React.CSSProperties = {
+  padding:"4px 10px",
+  borderRadius:8,
+  border:"1.5px solid #86efac",
+  background:"#fff",
+  fontSize:11,
+  fontWeight:700,
+  cursor:"pointer",
+  color:"#15803d",
+};
+
+const saveBtn: React.CSSProperties = {
+  width:"100%",
+  padding:"13px 0",
+  background:"#0e7490",
+  color:"#fff",
+  border:"none",
+  borderRadius:12,
+  fontSize:14,
+  fontWeight:700,
+  cursor:"pointer",
+};

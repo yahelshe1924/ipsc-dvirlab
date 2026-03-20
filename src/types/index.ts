@@ -20,6 +20,13 @@ export interface DutyAssignment {
   notes: string;
   gcal_event_id?: string | null;
   updated_at: string;
+
+  // --- NEW: Split duty ---
+  split_assignee_id?: string | null;
+  split_passage_number?: number | null;
+  split_plate_count?: number | null;
+  split_completed?: boolean;
+  split_completed_at?: string | null;
 }
 
 export interface Settings {
