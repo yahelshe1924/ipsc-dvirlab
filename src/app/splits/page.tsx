@@ -24,12 +24,6 @@ type SplitSummary = {
   total: number;
 };
 
-type RegistrationRow = {
-  split_id: string;
-  member_id: string;
-  plates_count: number;
-};
-
 type SplitCardData = SplitRow & {
   summary: SplitSummary;
   myRegistration: number | null;
@@ -41,10 +35,16 @@ export default function SplitsPage() {
   const [loggedInMember, setLoggedInMember] = useState<Member | null>(null);
   const [splits, setSplits] = useState<SplitCardData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingSplitId, setSavingSplitId] = useState<string | null>(null);
 
+  const [savingSplitId, setSavingSplitId] = useState<string | null>(null);
   const [editingSplitId, setEditingSplitId] = useState<string | null>(null);
   const [platesInput, setPlatesInput] = useState<string>("1");
+
+  const [editingFlowSplitId, setEditingFlowSplitId] = useState<string | null>(null);
+  const [flowInput, setFlowInput] = useState<string>("0");
+
+  const [resetting, setResetting] = useState(false);
+  const [resetStartNumber, setResetStartNumber] = useState<string>("11");
 
   useEffect(() => {
     void initializePage();
@@ -158,14 +158,24 @@ export default function SplitsPage() {
     return data?.plates_count ?? null;
   }
 
-  function openEditor(splitId: string, currentCount: number | null) {
+  function openRegistrationEditor(splitId: string, currentCount: number | null) {
     setEditingSplitId(splitId);
     setPlatesInput(String(currentCount ?? 1));
   }
 
-  function closeEditor() {
+  function closeRegistrationEditor() {
     setEditingSplitId(null);
     setPlatesInput("1");
+  }
+
+  function openFlowEditor(splitId: string, currentFlow: number) {
+    setEditingFlowSplitId(splitId);
+    setFlowInput(String(currentFlow));
+  }
+
+  function closeFlowEditor() {
+    setEditingFlowSplitId(null);
+    setFlowInput("0");
   }
 
   async function saveRegistration(splitId: string) {
@@ -197,7 +207,7 @@ export default function SplitsPage() {
     }
 
     await loadOpenSplits(loggedInMember);
-    closeEditor();
+    closeRegistrationEditor();
     setSavingSplitId(null);
   }
 
@@ -222,8 +232,72 @@ export default function SplitsPage() {
     }
 
     await loadOpenSplits(loggedInMember);
-    closeEditor();
+    closeRegistrationEditor();
     setSavingSplitId(null);
+  }
+
+  async function saveFlow(splitId: string) {
+    const count = Number(flowInput);
+
+    if (!Number.isInteger(count) || count < 0) {
+      alert("Please enter a whole number of 0 or more.");
+      return;
+    }
+
+    setSavingSplitId(splitId);
+
+    const { error } = await supabase.rpc("update_split_flow", {
+      p_split_id: splitId,
+      p_flow_count: count,
+    });
+
+    if (error) {
+      console.error("Could not update flow:", error);
+      alert("Failed to update flow.");
+      setSavingSplitId(null);
+      return;
+    }
+
+    await loadOpenSplits(loggedInMember);
+    closeFlowEditor();
+    setSavingSplitId(null);
+  }
+
+  async function handleReset() {
+    if (!loggedInMember) {
+      alert("You must be signed in to reset passages.");
+      return;
+    }
+
+    const startNumber = Number(resetStartNumber);
+
+    if (!Number.isInteger(startNumber) || startNumber <= 0 || startNumber > 40) {
+      alert("Please enter a valid start passage number between 1 and 40.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Resetting passages will close the current active batch and cancel all open passages that were not completed.\n\nA new batch will be created from Passage #${startNumber} to Passage #40.\n\nAre you sure you want to continue?`
+    );
+
+    if (!confirmed) return;
+
+    setResetting(true);
+
+    const { error } = await supabase.rpc("create_split_batch", {
+      start_number: startNumber,
+      user_id: loggedInMember.id,
+    });
+
+    if (error) {
+      console.error("Could not reset passages:", error);
+      alert("Failed to reset passages.");
+      setResetting(false);
+      return;
+    }
+
+    await loadOpenSplits(loggedInMember);
+    setResetting(false);
   }
 
   const content = useMemo(() => {
@@ -236,7 +310,8 @@ export default function SplitsPage() {
     }
 
     return splits.map((split) => {
-      const isEditing = editingSplitId === split.id;
+      const isRegistrationEditing = editingSplitId === split.id;
+      const isFlowEditing = editingFlowSplitId === split.id;
       const isSaving = savingSplitId === split.id;
 
       return (
@@ -266,21 +341,25 @@ export default function SplitsPage() {
             </strong>
           </div>
 
-          {!isEditing ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
             <button
-              onClick={() => openEditor(split.id, split.myRegistration)}
-              disabled={!loggedInMember}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                cursor: loggedInMember ? "pointer" : "not-allowed",
-                background: loggedInMember ? "#f6f8fa" : "#eee",
-              }}
+              onClick={() => openRegistrationEditor(split.id, split.myRegistration)}
+              disabled={!loggedInMember || isSaving}
+              style={buttonStyle(!loggedInMember || isSaving)}
             >
               {split.myRegistration !== null ? "Edit Registration" : "Register Plates"}
             </button>
-          ) : (
+
+            <button
+              onClick={() => openFlowEditor(split.id, split.flow_plate_count)}
+              disabled={isSaving}
+              style={buttonStyle(isSaving)}
+            >
+              Update Flow
+            </button>
+          </div>
+
+          {isRegistrationEditing && (
             <div
               style={{
                 marginTop: 10,
@@ -288,6 +367,7 @@ export default function SplitsPage() {
                 border: "1px solid #e5e7eb",
                 borderRadius: 10,
                 background: "#fafafa",
+                marginBottom: 12,
               }}
             >
               <label
@@ -304,26 +384,14 @@ export default function SplitsPage() {
                 step={1}
                 value={platesInput}
                 onChange={(e) => setPlatesInput(e.target.value)}
-                style={{
-                  width: 120,
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid #ccc",
-                  marginBottom: 12,
-                }}
+                style={inputStyle}
               />
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                 <button
                   onClick={() => void saveRegistration(split.id)}
                   disabled={isSaving}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #ccc",
-                    background: "#f6f8fa",
-                    cursor: isSaving ? "not-allowed" : "pointer",
-                  }}
+                  style={buttonStyle(isSaving)}
                 >
                   {isSaving ? "Saving..." : "Save"}
                 </button>
@@ -332,28 +400,63 @@ export default function SplitsPage() {
                   <button
                     onClick={() => void deleteRegistration(split.id)}
                     disabled={isSaving}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "1px solid #ccc",
-                      background: "#fff5f5",
-                      cursor: isSaving ? "not-allowed" : "pointer",
-                    }}
+                    style={buttonStyle(isSaving)}
                   >
                     Delete Registration
                   </button>
                 )}
 
                 <button
-                  onClick={closeEditor}
+                  onClick={closeRegistrationEditor}
                   disabled={isSaving}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #ccc",
-                    background: "#ffffff",
-                    cursor: isSaving ? "not-allowed" : "pointer",
-                  }}
+                  style={buttonStyle(isSaving)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isFlowEditing && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 12,
+                border: "1px solid #e5e7eb",
+                borderRadius: 10,
+                background: "#fafafa",
+              }}
+            >
+              <label
+                htmlFor={`flow-${split.id}`}
+                style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
+              >
+                Flow plates
+              </label>
+
+              <input
+                id={`flow-${split.id}`}
+                type="number"
+                min={0}
+                step={1}
+                value={flowInput}
+                onChange={(e) => setFlowInput(e.target.value)}
+                style={inputStyle}
+              />
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                <button
+                  onClick={() => void saveFlow(split.id)}
+                  disabled={isSaving}
+                  style={buttonStyle(isSaving)}
+                >
+                  {isSaving ? "Saving..." : "Save Flow"}
+                </button>
+
+                <button
+                  onClick={closeFlowEditor}
+                  disabled={isSaving}
+                  style={buttonStyle(isSaving)}
                 >
                   Cancel
                 </button>
@@ -363,13 +466,22 @@ export default function SplitsPage() {
         </div>
       );
     });
-  }, [editingSplitId, loading, loggedInMember, platesInput, savingSplitId, splits]);
+  }, [
+    editingFlowSplitId,
+    editingSplitId,
+    flowInput,
+    loading,
+    loggedInMember,
+    platesInput,
+    savingSplitId,
+    splits,
+  ]);
 
   return (
     <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ marginBottom: 8 }}>Open Passages</h1>
       <p style={{ marginTop: 0, marginBottom: 24, color: "#555" }}>
-        Register plates for each passage, including flow and maintenance tracking.
+        Register plates for each passage and manage flow plates.
       </p>
 
       {!loggedInMember && (
@@ -382,11 +494,68 @@ export default function SplitsPage() {
             border: "1px solid #f0d98a",
           }}
         >
-          You are not mapped to a member record, so registration actions are currently disabled.
+          You are not mapped to a member record, so some actions are currently disabled.
         </div>
       )}
+
+      <div
+        style={{
+          border: "1px solid #d0d7de",
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          background: "#fff",
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Reset Passages</div>
+
+        <label
+          htmlFor="resetStartNumber"
+          style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
+        >
+          New start passage number
+        </label>
+
+        <input
+          id="resetStartNumber"
+          type="number"
+          min={1}
+          max={40}
+          step={1}
+          value={resetStartNumber}
+          onChange={(e) => setResetStartNumber(e.target.value)}
+          style={inputStyle}
+        />
+
+        <div style={{ marginTop: 12 }}>
+          <button
+            onClick={() => void handleReset()}
+            disabled={!loggedInMember || resetting}
+            style={buttonStyle(!loggedInMember || resetting)}
+          >
+            {resetting ? "Resetting..." : "Reset Passages"}
+          </button>
+        </div>
+      </div>
 
       {content}
     </div>
   );
 }
+
+function buttonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid #ccc",
+    cursor: disabled ? "not-allowed" : "pointer",
+    background: disabled ? "#eee" : "#f6f8fa",
+  };
+}
+
+const inputStyle: React.CSSProperties = {
+  width: 140,
+  padding: 8,
+  borderRadius: 8,
+  border: "1px solid #ccc",
+};
