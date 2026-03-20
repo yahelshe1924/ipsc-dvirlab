@@ -4,21 +4,34 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 
-type Duty = {
+type DutyRow = {
   duty_date: string;
-  member_name?: string | null;
+  member_id?: string | null;
   volume_ml?: number | null;
   split_assignee_id?: string | null;
   split_completed?: boolean;
 };
 
+type MemberRow = {
+  id: string;
+  full_name: string;
+};
+
+type TodayDutyData = {
+  duty_date: string;
+  member_name: string | null;
+  volume_ml: number | null;
+  split_assignee_id: string | null;
+  split_completed: boolean;
+};
+
 export default function HomePage() {
   const supabase = createClient();
 
-  const [todayDuty, setTodayDuty] = useState<Duty | null>(null);
+  const [todayDuty, setTodayDuty] = useState<TodayDutyData | null>(null);
 
   useEffect(() => {
-    loadTodayDuty();
+    void loadTodayDuty();
   }, []);
 
   async function loadTodayDuty() {
@@ -26,16 +39,44 @@ export default function HomePage() {
 
     const { data, error } = await supabase
       .from("duty_assignments")
-      .select("duty_date, member_name, volume_ml, split_assignee_id, split_completed")
+      .select("duty_date, member_id, volume_ml, split_assignee_id, split_completed")
       .eq("duty_date", today)
       .maybeSingle();
 
     if (error) {
-      console.error(error);
+      console.error("Failed to load today's duty:", error);
       return;
     }
 
-    setTodayDuty(data);
+    if (!data) {
+      setTodayDuty(null);
+      return;
+    }
+
+    const duty = data as DutyRow;
+    let memberName: string | null = null;
+
+    if (duty.member_id) {
+      const { data: memberData, error: memberError } = await supabase
+        .from("members")
+        .select("id, full_name")
+        .eq("id", duty.member_id)
+        .maybeSingle();
+
+      if (memberError) {
+        console.error("Failed to load member:", memberError);
+      } else {
+        memberName = (memberData as MemberRow | null)?.full_name ?? null;
+      }
+    }
+
+    setTodayDuty({
+      duty_date: duty.duty_date,
+      member_name: memberName,
+      volume_ml: duty.volume_ml ?? null,
+      split_assignee_id: duty.split_assignee_id ?? null,
+      split_completed: Boolean(duty.split_completed),
+    });
   }
 
   return (
