@@ -479,10 +479,56 @@ export default function SplitsPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 8 }}>Open Passages</h1>
-      <p style={{ marginTop: 0, marginBottom: 24, color: "#555" }}>
-        Register plates for each passage and manage flow plates.
-      </p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 16,
+          marginBottom: 8,
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0 }}>Open Passages</h1>
+          <p style={{ marginTop: 8, marginBottom: 0, color: "#555" }}>
+            Register plates for each passage and manage flow plates.
+          </p>
+        </div>
+
+        <button
+          onClick={() => void handleReset()}
+          disabled={!loggedInMember || resetting}
+          style={resetButtonStyle(!loggedInMember || resetting)}
+        >
+          {resetting ? "Resetting..." : "Reset Passages"}
+        </button>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          marginBottom: 24,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <label htmlFor="resetStartNumber" style={{ fontWeight: 600 }}>
+          New start passage number
+        </label>
+
+        <input
+          id="resetStartNumber"
+          type="number"
+          min={1}
+          max={40}
+          step={1}
+          value={resetStartNumber}
+          onChange={(e) => setResetStartNumber(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
 
       {!loggedInMember && (
         <div
@@ -498,46 +544,6 @@ export default function SplitsPage() {
         </div>
       )}
 
-      <div
-        style={{
-          border: "1px solid #d0d7de",
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 24,
-          background: "#fff",
-        }}
-      >
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Reset Passages</div>
-
-        <label
-          htmlFor="resetStartNumber"
-          style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
-        >
-          New start passage number
-        </label>
-
-        <input
-          id="resetStartNumber"
-          type="number"
-          min={1}
-          max={40}
-          step={1}
-          value={resetStartNumber}
-          onChange={(e) => setResetStartNumber(e.target.value)}
-          style={inputStyle}
-        />
-
-        <div style={{ marginTop: 12 }}>
-          <button
-            onClick={() => void handleReset()}
-            disabled={!loggedInMember || resetting}
-            style={buttonStyle(!loggedInMember || resetting)}
-          >
-            {resetting ? "Resetting..." : "Reset Passages"}
-          </button>
-        </div>
-      </div>
-
       {content}
     </div>
   );
@@ -550,6 +556,19 @@ function buttonStyle(disabled: boolean): React.CSSProperties {
     border: "1px solid #ccc",
     cursor: disabled ? "not-allowed" : "pointer",
     background: disabled ? "#eee" : "#f6f8fa",
+  };
+}
+
+function resetButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "10px 16px",
+    borderRadius: 8,
+    border: "1px solid #b91c1c",
+    cursor: disabled ? "not-allowed" : "pointer",
+    background: disabled ? "#fca5a5" : "#dc2626",
+    color: "#ffffff",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
   };
 }
 
