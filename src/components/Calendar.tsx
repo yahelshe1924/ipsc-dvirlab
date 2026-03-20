@@ -6,7 +6,8 @@
  * Each cell shows:
  *   • Day number
  *   • Duty holiday name (if any)
- *   • Assignee name pill (stable colour)
+ *   • Medium-change assignee name pill
+ *   • Split assignee pill + passage number (if exists)
  *   • Volume reported badge (✓ N mL)
  *   • "pending" badge for today if no volume yet
  */
@@ -93,8 +94,13 @@ export default function Calendar({
 
           const key = toKey(year, month, d);
           const duty = duties[key];
+
           const member = duty?.member_id
-            ? members.find((m) => m.id === duty.member_id)
+            ? members.find((m) => m.id === duty.member_id) ?? null
+            : null;
+
+          const splitMember = duty?.split_assignee_id
+            ? members.find((m) => m.id === duty.split_assignee_id) ?? null
             : null;
 
           const dateObj = new Date(year, month, d);
@@ -108,6 +114,7 @@ export default function Calendar({
           const isWeekend = dow === 5 || dow === 6;
           const reported = duty?.volume_ml != null;
           const color = member ? getColor(member.color_index) : null;
+          const splitColor = splitMember ? getColor(splitMember.color_index) : null;
 
           let bgColor = "#fff";
           if (isToday) bgColor = "#ecfdf5";
@@ -152,21 +159,35 @@ export default function Calendar({
               {member && (
                 <div
                   style={{
-                    marginTop: 3,
-                    display: "inline-block",
+                    ...styles.assigneePill,
                     background: color!.bg,
                     color: color!.text,
-                    borderRadius: 999,
-                    padding: "1px 7px",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    maxWidth: "100%",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
                   }}
+                  title={`Medium change: ${member.full_name}`}
                 >
-                  {member.full_name.split(" ")[0]}
+                  M: {member.full_name.split(" ")[0]}
+                </div>
+              )}
+
+              {splitMember && (
+                <div
+                  style={{
+                    ...styles.splitPill,
+                    background: splitColor!.bg,
+                    color: splitColor!.text,
+                  }}
+                  title={`Split: ${splitMember.full_name}${
+                    duty?.split_passage_number != null ? ` (P${duty.split_passage_number})` : ""
+                  }`}
+                >
+                  S: {splitMember.full_name.split(" ")[0]}
+                  {duty?.split_passage_number != null ? ` · P${duty.split_passage_number}` : ""}
+                </div>
+              )}
+
+              {duty?.split_completed && (
+                <div style={styles.splitDoneBadge}>
+                  split done
                 </div>
               )}
 
@@ -250,7 +271,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 0",
   },
   cell: {
-    minHeight: 80,
+    minHeight: 96,
     borderRadius: 10,
     padding: "6px 7px",
     transition: "box-shadow 0.15s",
@@ -280,6 +301,39 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  assigneePill: {
+    marginTop: 3,
+    display: "inline-block",
+    borderRadius: 999,
+    padding: "1px 7px",
+    fontSize: 10,
+    fontWeight: 700,
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  splitPill: {
+    marginTop: 3,
+    display: "inline-block",
+    borderRadius: 999,
+    padding: "1px 7px",
+    fontSize: 10,
+    fontWeight: 700,
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    border: "1px dashed rgba(15,23,42,0.12)",
+  },
+  splitDoneBadge: {
+    marginTop: 3,
+    fontSize: 9,
+    color: "#0891b2",
+    fontWeight: 800,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
   },
   volumeBadge: {
     marginTop: 3,
