@@ -60,13 +60,13 @@ export default function CalendarPage() {
       ).padStart(2, "0")}-02`;
 
       const { data, error } = await supabase
-        .from("calendar_feed")
+        .from("duty_assignments")
         .select("*")
         .gte("duty_date", from)
         .lte("duty_date", to);
 
       if (error) {
-        console.error("Error loading calendar_feed:", error);
+        console.error("Error loading duty_assignments:", error);
       }
 
       const map: Record<string, DutyAssignment> = {};
@@ -107,7 +107,7 @@ export default function CalendarPage() {
 
     const old = duties[dateKey];
     const oldMemberId = old?.member_id ?? null;
-    const newMemberId = patch.member_id ?? null;
+    const newMemberId = patch.member_id ?? oldMemberId ?? null;
 
     const { data, error } = await supabase
       .from("duty_assignments")
@@ -149,7 +149,7 @@ export default function CalendarPage() {
     const tmrDuty = duties[tmrKey];
     if (!tmrDuty?.member_id) return null;
 
-    return members.find((m) => m.id === tmrDuty.member_id)?.full_name ?? null;
+    return members.find((member) => member.id === tmrDuty.member_id)?.full_name ?? null;
   }
 
   if (loading && members.length === 0) {
