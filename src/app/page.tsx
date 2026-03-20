@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase";
 type Duty = {
   duty_date: string;
   member_name?: string | null;
+  volume_ml?: number | null;
   split_assignee_id?: string | null;
   split_completed?: boolean;
 };
@@ -25,7 +26,7 @@ export default function HomePage() {
 
     const { data, error } = await supabase
       .from("duty_assignments")
-      .select("duty_date, member_name, split_assignee_id, split_completed")
+      .select("duty_date, member_name, volume_ml, split_assignee_id, split_completed")
       .eq("duty_date", today)
       .maybeSingle();
 
@@ -69,18 +70,27 @@ export default function HomePage() {
         ) : (
           <div style={box}>
             <div style={{ marginBottom: 6 }}>
+              <strong>Medium change:</strong> Completed
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
               <strong>Member:</strong> {todayDuty.member_name ?? "—"}
             </div>
 
             <div style={{ marginBottom: 6 }}>
-              <strong>Split duty:</strong>{" "}
-              {todayDuty.split_assignee_id ? "Yes" : "No"}
+              <strong>Volume changed:</strong>{" "}
+              {todayDuty.volume_ml !== null && todayDuty.volume_ml !== undefined
+                ? `${todayDuty.volume_ml} mL`
+                : "—"}
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <strong>Split duty:</strong> {todayDuty.split_assignee_id ? "Yes" : "No"}
             </div>
 
             {todayDuty.split_assignee_id && (
               <div>
-                <strong>Status:</strong>{" "}
-                {todayDuty.split_completed ? "Completed" : "Pending"}
+                <strong>Split status:</strong> {todayDuty.split_completed ? "Completed" : "Pending"}
               </div>
             )}
           </div>

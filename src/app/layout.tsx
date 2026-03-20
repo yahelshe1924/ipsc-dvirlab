@@ -24,6 +24,9 @@ export default function RootLayout({
               </div>
 
               <nav style={navStyle}>
+                <Link href="/" style={navLink}>
+                  Home
+                </Link>
                 <Link href="/calendar" style={navLink}>
                   Calendar
                 </Link>
