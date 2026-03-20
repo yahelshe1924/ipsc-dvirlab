@@ -37,6 +37,7 @@ export default function SplitsPage() {
   const [loading, setLoading] = useState(true);
 
   const [savingSplitId, setSavingSplitId] = useState<string | null>(null);
+
   const [editingSplitId, setEditingSplitId] = useState<string | null>(null);
   const [platesInput, setPlatesInput] = useState<string>("1");
 
@@ -485,7 +486,7 @@ export default function SplitsPage() {
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: 16,
-          marginBottom: 8,
+          marginBottom: 24,
         }}
       >
         <div>
@@ -495,39 +496,30 @@ export default function SplitsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => void handleReset()}
-          disabled={!loggedInMember || resetting}
-          style={resetButtonStyle(!loggedInMember || resetting)}
-        >
-          {resetting ? "Resetting..." : "Reset Passages"}
-        </button>
-      </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+          <button
+            onClick={() => void handleReset()}
+            disabled={!loggedInMember || resetting}
+            style={resetButtonStyle(!loggedInMember || resetting)}
+          >
+            {resetting ? "Resetting..." : "Reset Passages"}
+          </button>
 
-      <div
-        style={{
-          marginTop: 16,
-          marginBottom: 24,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <label htmlFor="resetStartNumber" style={{ fontWeight: 600 }}>
-          New start passage number
-        </label>
+          <label htmlFor="resetStartNumber" style={{ fontWeight: 600 }}>
+            New start passage number
+          </label>
 
-        <input
-          id="resetStartNumber"
-          type="number"
-          min={1}
-          max={40}
-          step={1}
-          value={resetStartNumber}
-          onChange={(e) => setResetStartNumber(e.target.value)}
-          style={inputStyle}
-        />
+          <input
+            id="resetStartNumber"
+            type="number"
+            min={1}
+            max={40}
+            step={1}
+            value={resetStartNumber}
+            onChange={(e) => setResetStartNumber(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
       </div>
 
       {!loggedInMember && (
