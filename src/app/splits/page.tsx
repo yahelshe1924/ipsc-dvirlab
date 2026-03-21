@@ -96,51 +96,52 @@ export default function SplitsPage() {
     return data ?? null;
   }
 
-  async function loadOpenSplits(member: Member | null) {
-    const { data: splitRows, error: splitsError } = await supabase
-      .from("splits")
-      .select(
-        [
-          "id",
-          "batch_id",
-          "split_number",
-          "status",
-          "performed_date",
-          "completed_at",
-          "completed_by_member_id",
-          "duty_assignment_id",
-          "maintenance_plate_count",
-          "flow_plate_count",
-          "actual_plate_count",
-          "created_at",
-        ].join(", ")
-      )
-      .eq("status", "open")
-      .order("split_number", { ascending: true });
+async function loadOpenSplits(member: Member | null) {
+  const { data: splitRows, error: splitsError } = await supabase
+    .from("splits")
+    .select(
+      [
+        "id",
+        "batch_id",
+        "split_number",
+        "status",
+        "performed_date",
+        "completed_at",
+        "completed_by_member_id",
+        "duty_assignment_id",
+        "maintenance_plate_count",
+        "flow_plate_count",
+        "actual_plate_count",
+        "created_at",
+      ].join(", ")
+    )
+    .eq("status", "open")
+    .order("split_number", { ascending: true })
+    .returns<SplitRow[]>();
 
-    if (splitsError) {
-      console.error("Could not load open passages:", splitsError);
-      setSplits([]);
-      return;
-    }
-
-    const rows = (splitRows ?? []) as SplitRow[];
-
-    const cards = await Promise.all(
-      rows.map(async (row) => {
-        const summary = await loadSplitSummary(row.id);
-        const myRegistration = member ? await loadMyRegistration(row.id, member.id) : null;
-
-        return {
-          ...row,
-          summary,
-          myRegistration,
-        } satisfies SplitCardData;
-      })
-    );
-
-    setSplits(cards);
+  if (splitsError) {
+    console.error("Could not load open passages:", splitsError);
+    setSplits([]);
+    return;
   }
+
+  const rows = splitRows ?? [];
+
+  const cards = await Promise.all(
+    rows.map(async (row) => {
+      const summary = await loadSplitSummary(row.id);
+      const myRegistration = member ? await loadMyRegistration(row.id, member.id) : null;
+
+      return {
+        ...row,
+        summary,
+        myRegistration,
+      } satisfies SplitCardData;
+    })
+  );
+
+  setSplits(cards);
+}
 
   async function loadSplitSummary(splitId: string): Promise<SplitSummary> {
     const { data, error } = await supabase.rpc("get_split_summary", {
