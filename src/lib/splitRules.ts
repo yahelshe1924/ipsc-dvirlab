@@ -1,236 +1,148 @@
-// lib/splitService.ts
+// src/lib/splitRules.ts
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   SplitCounts,
   SplitRecord,
+  SplitValidationInput,
   SplitValidationResult,
 } from "@/types";
-import { getSplitCounts, validateSplitChange } from "@/lib/splitRules";
 
-export interface ApplySplitChangeInput {
-  supabase: SupabaseClient;
-  splitId: string;
-  newCounts: SplitCounts;
-}
-
-export interface ApplySplitChangeResult {
-  success: boolean;
-  validation: SplitValidationResult;
-  currentSplit: SplitRecord;
-  prevSplit: SplitRecord | null;
-  nextSplit: SplitRecord | null;
-}
-
-function normalizeCounts(counts: SplitCounts): SplitCounts {
+export function getSplitCounts(split: SplitRecord): SplitCounts {
   return {
-    actual: Math.max(0, Number(counts.actual) || 0),
-    flow: Math.max(0, Number(counts.flow) || 0),
-    maintenance: Math.max(0, Number(counts.maintenance) || 0),
+    actual: split.actual_plate_count ?? 0,
+    flow: split.flow_plate_count ?? 0,
+    maintenance: split.maintenance_plate_count ?? 0,
   };
 }
 
-export async function getSplitById(
-  supabase: SupabaseClient,
-  splitId: string
-): Promise<SplitRecord> {
-  const { data, error } = await supabase
-    .from("splits")
-    .select("*")
-    .eq("id", splitId)
-    .single();
-
-  if (error || !data) {
-    throw new Error("Failed to load split.");
-  }
-
-  return data as SplitRecord;
+export function calcTotal(counts: SplitCounts): number {
+  return counts.actual + counts.flow + counts.maintenance;
 }
 
-export async function getPrevSplit(
-  supabase: SupabaseClient,
-  currentSplit: SplitRecord
-): Promise<SplitRecord | null> {
-  const { data, error } = await supabase
-    .from("splits")
-    .select("*")
-    .eq("batch_id", currentSplit.batch_id)
-    .eq("split_number", currentSplit.split_number - 1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error("Failed to load previous split.");
-  }
-
-  return (data as SplitRecord | null) ?? null;
+export function getRequiredPrevMaintenance(total: number): 1 | 2 {
+  return total > 6 ? 2 : 1;
 }
 
-export async function getNextSplit(
-  supabase: SupabaseClient,
-  currentSplit: SplitRecord
-): Promise<SplitRecord | null> {
-  const { data, error } = await supabase
-    .from("splits")
-    .select("*")
-    .eq("batch_id", currentSplit.batch_id)
-    .eq("split_number", currentSplit.split_number + 1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error("Failed to load next split.");
-  }
-
-  return (data as SplitRecord | null) ?? null;
+export function getCapacityFromPrev(prevSplit: SplitRecord | null): 6 | 12 {
+  if (!prevSplit) return 6;
+  return prevSplit.maintenance_plate_count === 2 ? 12 : 6;
 }
 
-export async function loadSplitNeighbors(
-  supabase: SupabaseClient,
-  splitId: string
-): Promise<{
-  currentSplit: SplitRecord;
-  prevSplit: SplitRecord | null;
-  nextSplit: SplitRecord | null;
-}> {
-  const currentSplit = await getSplitById(supabase, splitId);
-  const [prevSplit, nextSplit] = await Promise.all([
-    getPrevSplit(supabase, currentSplit),
-    getNextSplit(supabase, currentSplit),
-  ]);
-
-  return { currentSplit, prevSplit, nextSplit };
+export function getCapacityFromPrevMaintenance(prevMaintenance: number): 6 | 12 {
+  return prevMaintenance === 2 ? 12 : 6;
 }
 
-export async function previewSplitChange(params: {
-  supabase: SupabaseClient;
-  splitId: string;
-  newCounts: SplitCounts;
-}): Promise<{
-  validation: SplitValidationResult;
-  currentSplit: SplitRecord;
-  prevSplit: SplitRecord | null;
-  nextSplit: SplitRecord | null;
-}> {
-  const { supabase, splitId } = params;
-  const newCounts = normalizeCounts(params.newCounts);
-
-  const { currentSplit, prevSplit, nextSplit } = await loadSplitNeighbors(
-    supabase,
-    splitId
-  );
-
-  const validation = validateSplitChange({
-    currentSplit,
-    newCurrentCounts: newCounts,
-    prevSplit,
-    nextSplit,
-  });
-
-  return {
-    validation,
-    currentSplit,
-    prevSplit,
-    nextSplit,
-  };
+export function isSplitOpen(split: SplitRecord | null): boolean {
+  return !!split && split.status === "open";
 }
 
-/**
- * Applies the split change and updates the previous split's maintenance count
- * if needed by the rules engine.
- *
- * Best-effort rollback is included, but this is not a true DB transaction.
- */
-export async function applySplitChange(
-  params: ApplySplitChangeInput
-): Promise<ApplySplitChangeResult> {
-  const { supabase, splitId } = params;
-  const newCounts = normalizeCounts(params.newCounts);
+export function validateSplitChange(
+  input: SplitValidationInput
+): SplitValidationResult {
+  const { currentSplit, newCurrentCounts, prevSplit, nextSplit } = input;
 
-  const { validation, currentSplit, prevSplit, nextSplit } =
-    await previewSplitChange({
-      supabase,
-      splitId,
-      newCounts,
-    });
+  const newCurrentTotal = calcTotal(newCurrentCounts);
+  const requiredPrevMaintenance = getRequiredPrevMaintenance(newCurrentTotal);
+  const resultingCapacity = getCapacityFromPrevMaintenance(requiredPrevMaintenance);
 
-  if (!validation.allowed) {
-    throw new Error(validation.error || "This split change is not allowed.");
-  }
-
-  const originalCurrentCounts = getSplitCounts(currentSplit);
-  const originalPrevMaintenance = prevSplit?.maintenance_plate_count ?? null;
-
-  const requiredPrevMaintenance = validation.requiredPrevMaintenance;
-
-  try {
-    // 1. Update previous split maintenance if needed
-    if (
-      prevSplit &&
-      prevSplit.maintenance_plate_count !== requiredPrevMaintenance
-    ) {
-      const { error: prevUpdateError } = await supabase
-        .from("splits")
-        .update({
-          maintenance_plate_count: requiredPrevMaintenance,
-        })
-        .eq("id", prevSplit.id);
-
-      if (prevUpdateError) {
-        throw new Error(
-          "Failed to update maintenance plates in the previous split."
-        );
-      }
-    }
-
-    // 2. Update current split counts
-    const { error: currentUpdateError } = await supabase
-      .from("splits")
-      .update({
-        actual_plate_count: newCounts.actual,
-        flow_plate_count: newCounts.flow,
-        maintenance_plate_count: newCounts.maintenance,
-      })
-      .eq("id", currentSplit.id);
-
-    if (currentUpdateError) {
-      throw new Error("Failed to update the current split.");
-    }
-
-    // 3. Re-read current row after update
-    const refreshedCurrent = await getSplitById(supabase, currentSplit.id);
-
+  if (newCurrentTotal > resultingCapacity) {
     return {
-      success: true,
-      validation,
-      currentSplit: refreshedCurrent,
-      prevSplit,
-      nextSplit,
+      allowed: false,
+      error: `You cannot register more than ${resultingCapacity} plates for this split.`,
+      warning: null,
+      newCurrentTotal,
+      requiredPrevMaintenance,
+      resultingCapacity,
+      shouldWarnAboutExtraMaintenance: false,
     };
-  } catch (err) {
-    // Best-effort rollback
-    try {
-      await supabase
-        .from("splits")
-        .update({
-          actual_plate_count: originalCurrentCounts.actual,
-          flow_plate_count: originalCurrentCounts.flow,
-          maintenance_plate_count: originalCurrentCounts.maintenance,
-        })
-        .eq("id", currentSplit.id);
+  }
 
-      if (prevSplit && originalPrevMaintenance !== null) {
-        await supabase
-          .from("splits")
-          .update({
-            maintenance_plate_count: originalPrevMaintenance,
-          })
-          .eq("id", prevSplit.id);
-      }
-    } catch {
-      // swallow rollback error; original error is more useful
+  if (requiredPrevMaintenance === 2) {
+    if (!prevSplit) {
+      return {
+        allowed: false,
+        error:
+          "You cannot exceed 6 plates because there is no previous split to add a maintenance plate.",
+        warning: null,
+        newCurrentTotal,
+        requiredPrevMaintenance,
+        resultingCapacity,
+        shouldWarnAboutExtraMaintenance: false,
+      };
     }
 
-    throw err instanceof Error
-      ? err
-      : new Error("Failed to apply split change.");
+    if (!isSplitOpen(prevSplit)) {
+      return {
+        allowed: false,
+        error:
+          "You cannot exceed 6 plates because the previous split is not open for adding maintenance plates.",
+        warning: null,
+        newCurrentTotal,
+        requiredPrevMaintenance,
+        resultingCapacity,
+        shouldWarnAboutExtraMaintenance: false,
+      };
+    }
+
+    const prevCounts = getSplitCounts(prevSplit);
+    const prevTotal = calcTotal(prevCounts);
+    const deltaMaintenance = 2 - prevCounts.maintenance;
+
+    if (deltaMaintenance > 0 && prevTotal + deltaMaintenance > 6) {
+      return {
+        allowed: false,
+        error:
+          "This action is not allowed because adding a maintenance plate to the previous split would exceed its limit of 6 plates.",
+        warning: null,
+        newCurrentTotal,
+        requiredPrevMaintenance,
+        resultingCapacity,
+        shouldWarnAboutExtraMaintenance: false,
+      };
+    }
   }
+
+  const currentMaintenance = currentSplit.maintenance_plate_count ?? 0;
+  const nextTotal = nextSplit ? calcTotal(getSplitCounts(nextSplit)) : 0;
+
+  if (
+    nextSplit &&
+    currentMaintenance === 2 &&
+    newCurrentCounts.maintenance < 2 &&
+    nextTotal > 6
+  ) {
+    return {
+      allowed: false,
+      error:
+        "You cannot reduce maintenance plates because the next split already relies on expanded capacity (more than 6 plates).",
+      warning: null,
+      newCurrentTotal,
+      requiredPrevMaintenance,
+      resultingCapacity,
+      shouldWarnAboutExtraMaintenance: false,
+    };
+  }
+
+  let warning: string | null = null;
+  const prevMaintenanceNow = prevSplit?.maintenance_plate_count ?? 1;
+
+  if (newCurrentTotal > 6 && prevMaintenanceNow < 2) {
+    warning =
+      "This action will add an extra maintenance plate to the previous split and increase the capacity of this split to 12 plates.";
+  } else if (newCurrentTotal > 6 && prevMaintenanceNow === 2) {
+    warning = "This split is already using expanded capacity (up to 12 plates).";
+  } else if (newCurrentTotal <= 6 && prevMaintenanceNow === 2) {
+    warning =
+      "Reducing the number of plates will remove the extra maintenance plate from the previous split and return capacity to 6.";
+  }
+
+  return {
+    allowed: true,
+    error: null,
+    warning,
+    newCurrentTotal,
+    requiredPrevMaintenance,
+    resultingCapacity,
+    shouldWarnAboutExtraMaintenance: requiredPrevMaintenance === 2,
+  };
 }
