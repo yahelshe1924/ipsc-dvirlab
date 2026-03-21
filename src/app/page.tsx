@@ -238,14 +238,6 @@ export default function HomePage() {
 
                 <div style={infoGrid}>
                   <InfoItem label="Member" value={tomorrowDuty.member_name ?? "—"} />
-                  <InfoItem
-                    label="Planned volume"
-                    value={
-                      tomorrowDuty.volume_ml !== null && tomorrowDuty.volume_ml !== undefined
-                        ? `${tomorrowDuty.volume_ml} mL`
-                        : "—"
-                    }
-                  />
                   <InfoItem label="Date" value={tomorrowDuty.duty_date} />
                 </div>
               </>
