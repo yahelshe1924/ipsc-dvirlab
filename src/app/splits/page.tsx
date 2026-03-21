@@ -33,9 +33,24 @@ type SplitSummary = {
   total: number;
 };
 
+type SplitRegistrationRow = {
+  member_id: string;
+  plates_count: number;
+  members: {
+    full_name: string;
+  } | null;
+};
+
+type SplitRegistrationItem = {
+  member_id: string;
+  member_name: string;
+  plates_count: number;
+};
+
 type SplitCardData = SplitRow & {
   summary: SplitSummary;
   myRegistration: number | null;
+  registrations: SplitRegistrationItem[];
 };
 
 export default function SplitsPage() {
@@ -52,6 +67,8 @@ export default function SplitsPage() {
 
   const [editingFlowSplitId, setEditingFlowSplitId] = useState<string | null>(null);
   const [flowInput, setFlowInput] = useState<string>("0");
+
+  const [expandedRegistrationsSplitId, setExpandedRegistrationsSplitId] = useState<string | null>(null);
 
   const [resetting, setResetting] = useState(false);
   const [resetStartNumber, setResetStartNumber] = useState<string>("11");
@@ -96,52 +113,56 @@ export default function SplitsPage() {
     return data ?? null;
   }
 
-async function loadOpenSplits(member: Member | null) {
-  const { data: splitRows, error: splitsError } = await supabase
-    .from("splits")
-    .select(
-      [
-        "id",
-        "batch_id",
-        "split_number",
-        "status",
-        "performed_date",
-        "completed_at",
-        "completed_by_member_id",
-        "duty_assignment_id",
-        "maintenance_plate_count",
-        "flow_plate_count",
-        "actual_plate_count",
-        "created_at",
-      ].join(", ")
-    )
-    .eq("status", "open")
-    .order("split_number", { ascending: true })
-    .returns<SplitRow[]>();
+  async function loadOpenSplits(member: Member | null) {
+    const { data: splitRows, error: splitsError } = await supabase
+      .from("splits")
+      .select(
+        [
+          "id",
+          "batch_id",
+          "split_number",
+          "status",
+          "performed_date",
+          "completed_at",
+          "completed_by_member_id",
+          "duty_assignment_id",
+          "maintenance_plate_count",
+          "flow_plate_count",
+          "actual_plate_count",
+          "created_at",
+        ].join(", ")
+      )
+      .eq("status", "open")
+      .order("split_number", { ascending: true })
+      .returns<SplitRow[]>();
 
-  if (splitsError) {
-    console.error("Could not load open passages:", splitsError);
-    setSplits([]);
-    return;
+    if (splitsError) {
+      console.error("Could not load open passages:", splitsError);
+      setSplits([]);
+      return;
+    }
+
+    const rows = splitRows ?? [];
+
+    const cards = await Promise.all(
+      rows.map(async (row) => {
+        const [summary, myRegistration, registrations] = await Promise.all([
+          loadSplitSummary(row.id),
+          member ? loadMyRegistration(row.id, member.id) : Promise.resolve(null),
+          loadSplitRegistrations(row.id),
+        ]);
+
+        return {
+          ...row,
+          summary,
+          myRegistration,
+          registrations,
+        } satisfies SplitCardData;
+      })
+    );
+
+    setSplits(cards);
   }
-
-  const rows = splitRows ?? [];
-
-  const cards = await Promise.all(
-    rows.map(async (row) => {
-      const summary = await loadSplitSummary(row.id);
-      const myRegistration = member ? await loadMyRegistration(row.id, member.id) : null;
-
-      return {
-        ...row,
-        summary,
-        myRegistration,
-      } satisfies SplitCardData;
-    })
-  );
-
-  setSplits(cards);
-}
 
   async function loadSplitSummary(splitId: string): Promise<SplitSummary> {
     const { data, error } = await supabase.rpc("get_split_summary", {
@@ -184,6 +205,26 @@ async function loadOpenSplits(member: Member | null) {
     return data?.plates_count ?? null;
   }
 
+  async function loadSplitRegistrations(splitId: string): Promise<SplitRegistrationItem[]> {
+    const { data, error } = await supabase
+      .from("split_registrations")
+      .select("member_id, plates_count, members(full_name)")
+      .eq("split_id", splitId)
+      .order("plates_count", { ascending: false })
+      .returns<SplitRegistrationRow[]>();
+
+    if (error) {
+      console.error(`Could not load registrations for split ${splitId}:`, error);
+      return [];
+    }
+
+    return (data ?? []).map((row) => ({
+      member_id: row.member_id,
+      member_name: row.members?.full_name ?? "Unknown member",
+      plates_count: row.plates_count,
+    }));
+  }
+
   function openRegistrationEditor(splitId: string, currentCount: number | null) {
     setEditingSplitId(splitId);
     setPlatesInput(String(currentCount ?? 1));
@@ -202,6 +243,10 @@ async function loadOpenSplits(member: Member | null) {
   function closeFlowEditor() {
     setEditingFlowSplitId(null);
     setFlowInput("0");
+  }
+
+  function toggleRegistrations(splitId: string) {
+    setExpandedRegistrationsSplitId((prev) => (prev === splitId ? null : splitId));
   }
 
   function findSplitCard(splitId: string): SplitCardData | null {
@@ -346,7 +391,7 @@ async function loadOpenSplits(member: Member | null) {
 
     if (error) {
       console.error("Could not save registration:", error);
-      alert(error.message ||"Failed to save registration.");
+      alert(error.message || "Failed to save registration.");
       setSavingSplitId(null);
       return;
     }
@@ -383,7 +428,7 @@ async function loadOpenSplits(member: Member | null) {
 
     if (error) {
       console.error("Could not delete registration:", error);
-      alert(error.message ||"Failed to delete registration.");
+      alert(error.message || "Failed to delete registration.");
       setSavingSplitId(null);
       return;
     }
@@ -422,7 +467,7 @@ async function loadOpenSplits(member: Member | null) {
 
     if (error) {
       console.error("Could not update flow:", error);
-      alert(error.message ||"Failed to update flow.");
+      alert(error.message || "Failed to update flow.");
       setSavingSplitId(null);
       return;
     }
@@ -482,6 +527,7 @@ async function loadOpenSplits(member: Member | null) {
       const isRegistrationEditing = editingSplitId === split.id;
       const isFlowEditing = editingFlowSplitId === split.id;
       const isSaving = savingSplitId === split.id;
+      const isRegistrationsExpanded = expandedRegistrationsSplitId === split.id;
 
       const registrationPreview =
         isRegistrationEditing && parsePositiveInt(platesInput) !== null
@@ -504,8 +550,25 @@ async function loadOpenSplits(member: Member | null) {
             background: "#fff",
           }}
         >
-          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
-            Passage #{split.split_number}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 12,
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 700 }}>
+              Passage #{split.split_number}
+            </div>
+
+            <button
+              onClick={() => toggleRegistrations(split.id)}
+              style={buttonStyle(false)}
+            >
+              {isRegistrationsExpanded ? "Hide Registrations" : "View Registrations"}
+            </button>
           </div>
 
           <div style={{ marginBottom: 6 }}>User plates: {split.summary.user_plates}</div>
@@ -519,6 +582,28 @@ async function loadOpenSplits(member: Member | null) {
               {split.myRegistration !== null ? `${split.myRegistration} plates` : "Not registered"}
             </strong>
           </div>
+
+          {isRegistrationsExpanded && (
+            <div style={registrationsBoxStyle}>
+              <div style={{ fontWeight: 700, marginBottom: 10 }}>Registrations</div>
+
+              {split.registrations.length === 0 ? (
+                <div style={{ color: "#64748b" }}>No registrations yet.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {split.registrations.map((registration) => (
+                    <div
+                      key={registration.member_id}
+                      style={registrationRowStyle}
+                    >
+                      <span>{registration.member_name}</span>
+                      <strong>{registration.plates_count} plates</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
             <button
@@ -662,6 +747,7 @@ async function loadOpenSplits(member: Member | null) {
   }, [
     editingFlowSplitId,
     editingSplitId,
+    expandedRegistrationsSplitId,
     flowInput,
     loading,
     loggedInMember,
@@ -781,4 +867,23 @@ const errorBoxStyle: React.CSSProperties = {
   border: "1px solid #fecaca",
   color: "#b91c1c",
   lineHeight: 1.4,
+};
+
+const registrationsBoxStyle: React.CSSProperties = {
+  marginBottom: 12,
+  padding: 12,
+  border: "1px solid #e5e7eb",
+  borderRadius: 10,
+  background: "#fafafa",
+};
+
+const registrationRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: "8px 10px",
+  borderRadius: 8,
+  background: "#ffffff",
+  border: "1px solid #e5e7eb",
 };
