@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase";
+import { validateSplitChange } from "@/lib/splitRules";
+import type { SplitCounts, SplitRecord, SplitValidationResult } from "@/types";
 
 type Member = {
   id: string;
@@ -11,10 +13,17 @@ type Member = {
 
 type SplitRow = {
   id: string;
+  batch_id: string;
   split_number: number;
-  flow_plate_count: number;
-  maintenance_plate_count: number;
   status: "open" | "completed" | "cancelled";
+  performed_date: string | null;
+  completed_at: string | null;
+  completed_by_member_id: string | null;
+  duty_assignment_id: string | null;
+  maintenance_plate_count: number;
+  flow_plate_count: number;
+  actual_plate_count: number | null;
+  created_at: string;
 };
 
 type SplitSummary = {
@@ -90,7 +99,22 @@ export default function SplitsPage() {
   async function loadOpenSplits(member: Member | null) {
     const { data: splitRows, error: splitsError } = await supabase
       .from("splits")
-      .select("id, split_number, flow_plate_count, maintenance_plate_count, status")
+      .select(
+        [
+          "id",
+          "batch_id",
+          "split_number",
+          "status",
+          "performed_date",
+          "completed_at",
+          "completed_by_member_id",
+          "duty_assignment_id",
+          "maintenance_plate_count",
+          "flow_plate_count",
+          "actual_plate_count",
+          "created_at",
+        ].join(", ")
+      )
       .eq("status", "open")
       .order("split_number", { ascending: true });
 
@@ -179,17 +203,136 @@ export default function SplitsPage() {
     setFlowInput("0");
   }
 
+  function findSplitCard(splitId: string): SplitCardData | null {
+    return splits.find((s) => s.id === splitId) ?? null;
+  }
+
+  function findPrevSplitCard(split: SplitCardData): SplitCardData | null {
+    return (
+      splits.find(
+        (s) =>
+          s.batch_id === split.batch_id &&
+          s.split_number === split.split_number - 1
+      ) ?? null
+    );
+  }
+
+  function findNextSplitCard(split: SplitCardData): SplitCardData | null {
+    return (
+      splits.find(
+        (s) =>
+          s.batch_id === split.batch_id &&
+          s.split_number === split.split_number + 1
+      ) ?? null
+    );
+  }
+
+  function cardToSplitRecord(card: SplitCardData): SplitRecord {
+    return {
+      id: card.id,
+      batch_id: card.batch_id,
+      split_number: card.split_number,
+      status: card.status,
+      performed_date: card.performed_date,
+      completed_at: card.completed_at,
+      completed_by_member_id: card.completed_by_member_id,
+      duty_assignment_id: card.duty_assignment_id,
+      maintenance_plate_count: card.summary.maintenance,
+      flow_plate_count: card.summary.flow,
+      actual_plate_count: card.summary.user_plates,
+      created_at: card.created_at,
+    };
+  }
+
+  function parsePositiveInt(value: string): number | null {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n <= 0) return null;
+    return n;
+  }
+
+  function parseNonNegativeInt(value: string): number | null {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 0) return null;
+    return n;
+  }
+
+  function previewRegistrationChange(
+    splitId: string,
+    desiredMyRegistration: number
+  ): SplitValidationResult | null {
+    const split = findSplitCard(splitId);
+    if (!split) return null;
+
+    const prevSplit = findPrevSplitCard(split);
+    const nextSplit = findNextSplitCard(split);
+
+    const currentMyRegistration = split.myRegistration ?? 0;
+    const currentUserPlates = split.summary.user_plates;
+
+    const newActual =
+      currentUserPlates - currentMyRegistration + desiredMyRegistration;
+
+    const newCounts: SplitCounts = {
+      actual: Math.max(0, newActual),
+      flow: split.summary.flow,
+      maintenance: split.summary.maintenance,
+    };
+
+    return validateSplitChange({
+      currentSplit: cardToSplitRecord(split),
+      newCurrentCounts: newCounts,
+      prevSplit: prevSplit ? cardToSplitRecord(prevSplit) : null,
+      nextSplit: nextSplit ? cardToSplitRecord(nextSplit) : null,
+    });
+  }
+
+  function previewFlowChange(
+    splitId: string,
+    desiredFlowCount: number
+  ): SplitValidationResult | null {
+    const split = findSplitCard(splitId);
+    if (!split) return null;
+
+    const prevSplit = findPrevSplitCard(split);
+    const nextSplit = findNextSplitCard(split);
+
+    const newCounts: SplitCounts = {
+      actual: split.summary.user_plates,
+      flow: desiredFlowCount,
+      maintenance: split.summary.maintenance,
+    };
+
+    return validateSplitChange({
+      currentSplit: cardToSplitRecord(split),
+      newCurrentCounts: newCounts,
+      prevSplit: prevSplit ? cardToSplitRecord(prevSplit) : null,
+      nextSplit: nextSplit ? cardToSplitRecord(nextSplit) : null,
+    });
+  }
+
   async function saveRegistration(splitId: string) {
     if (!loggedInMember) {
       alert("You must be signed in to register plates.");
       return;
     }
 
-    const count = Number(platesInput);
+    const count = parsePositiveInt(platesInput);
 
-    if (!Number.isInteger(count) || count <= 0) {
+    if (count === null) {
       alert("Please enter a whole number greater than 0.");
       return;
+    }
+
+    const preview = previewRegistrationChange(splitId, count);
+
+    if (preview && !preview.allowed) {
+      alert(preview.error || "This change is not allowed.");
+      return;
+    }
+
+    if (preview?.warning) {
+      const confirmed = window.confirm(preview.warning);
+      if (!confirmed) return;
     }
 
     setSavingSplitId(splitId);
@@ -218,6 +361,18 @@ export default function SplitsPage() {
       return;
     }
 
+    const preview = previewRegistrationChange(splitId, 0);
+
+    if (preview && !preview.allowed) {
+      alert(preview.error || "This change is not allowed.");
+      return;
+    }
+
+    if (preview?.warning) {
+      const confirmed = window.confirm(preview.warning);
+      if (!confirmed) return;
+    }
+
     setSavingSplitId(splitId);
 
     const { error } = await supabase.rpc("delete_split_registration", {
@@ -238,11 +393,23 @@ export default function SplitsPage() {
   }
 
   async function saveFlow(splitId: string) {
-    const count = Number(flowInput);
+    const count = parseNonNegativeInt(flowInput);
 
-    if (!Number.isInteger(count) || count < 0) {
+    if (count === null) {
       alert("Please enter a whole number of 0 or more.");
       return;
+    }
+
+    const preview = previewFlowChange(splitId, count);
+
+    if (preview && !preview.allowed) {
+      alert(preview.error || "This change is not allowed.");
+      return;
+    }
+
+    if (preview?.warning) {
+      const confirmed = window.confirm(preview.warning);
+      if (!confirmed) return;
     }
 
     setSavingSplitId(splitId);
@@ -314,6 +481,16 @@ export default function SplitsPage() {
       const isRegistrationEditing = editingSplitId === split.id;
       const isFlowEditing = editingFlowSplitId === split.id;
       const isSaving = savingSplitId === split.id;
+
+      const registrationPreview =
+        isRegistrationEditing && parsePositiveInt(platesInput) !== null
+          ? previewRegistrationChange(split.id, Number(platesInput))
+          : null;
+
+      const flowPreview =
+        isFlowEditing && parseNonNegativeInt(flowInput) !== null
+          ? previewFlowChange(split.id, Number(flowInput))
+          : null;
 
       return (
         <div
@@ -388,6 +565,14 @@ export default function SplitsPage() {
                 style={inputStyle}
               />
 
+              {registrationPreview?.error && (
+                <div style={errorBoxStyle}>{registrationPreview.error}</div>
+              )}
+
+              {!registrationPreview?.error && registrationPreview?.warning && (
+                <div style={warningBoxStyle}>{registrationPreview.warning}</div>
+              )}
+
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                 <button
                   onClick={() => void saveRegistration(split.id)}
@@ -444,6 +629,12 @@ export default function SplitsPage() {
                 onChange={(e) => setFlowInput(e.target.value)}
                 style={inputStyle}
               />
+
+              {flowPreview?.error && <div style={errorBoxStyle}>{flowPreview.error}</div>}
+
+              {!flowPreview?.error && flowPreview?.warning && (
+                <div style={warningBoxStyle}>{flowPreview.warning}</div>
+              )}
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                 <button
@@ -569,4 +760,24 @@ const inputStyle: React.CSSProperties = {
   padding: 8,
   borderRadius: 8,
   border: "1px solid #ccc",
+};
+
+const warningBoxStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 10,
+  borderRadius: 8,
+  background: "#fff8e1",
+  border: "1px solid #f0d98a",
+  color: "#7a5d00",
+  lineHeight: 1.4,
+};
+
+const errorBoxStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: 10,
+  borderRadius: 8,
+  background: "#fef2f2",
+  border: "1px solid #fecaca",
+  color: "#b91c1c",
+  lineHeight: 1.4,
 };

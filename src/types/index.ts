@@ -11,7 +11,7 @@ export interface Member {
 
 export interface DutyAssignment {
   id: string;
-  duty_date: string;       // "YYYY-MM-DD"
+  duty_date: string; // "YYYY-MM-DD"
   member_id: string | null;
   member_name?: string | null;
   member_email?: string | null;
@@ -21,7 +21,7 @@ export interface DutyAssignment {
   gcal_event_id?: string | null;
   updated_at: string;
 
-  // --- NEW: Split duty ---
+  // --- Split duty fields ---
   split_assignee_id?: string | null;
   split_passage_number?: number | null;
   split_plate_count?: number | null;
@@ -56,4 +56,49 @@ export interface MemberStats {
   split_assigned_total: number;
   split_completed_total: number;
   split_plates_total: number;
+}
+
+// -----------------------------
+// Split records / split logic
+// -----------------------------
+
+export interface SplitRecord {
+  id: string;
+  batch_id: string;
+  split_number: number;
+  status: string;
+  performed_date: string | null;
+  completed_at: string | null;
+  completed_by_member_id: string | null;
+  duty_assignment_id: string | null;
+  maintenance_plate_count: number;
+  flow_plate_count: number;
+  actual_plate_count: number | null;
+  created_at: string;
+}
+
+export interface SplitCounts {
+  actual: number;
+  flow: number;
+  maintenance: number;
+}
+
+export interface SplitValidationInput {
+  currentSplit: SplitRecord;
+  newCurrentCounts: SplitCounts;
+  prevSplit: SplitRecord | null;
+  nextSplit: SplitRecord | null;
+}
+
+export interface SplitValidationResult {
+  allowed: boolean;
+  error: string | null;
+
+  warning: string | null; // NEW
+
+  newCurrentTotal: number;
+  requiredPrevMaintenance: 1 | 2;
+  resultingCapacity: 6 | 12;
+
+  shouldWarnAboutExtraMaintenance: boolean;
 }
