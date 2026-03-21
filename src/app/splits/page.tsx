@@ -346,7 +346,7 @@ async function loadOpenSplits(member: Member | null) {
 
     if (error) {
       console.error("Could not save registration:", error);
-      alert("Failed to save registration.");
+      alert(error.message ||"Failed to save registration.");
       setSavingSplitId(null);
       return;
     }
@@ -383,7 +383,7 @@ async function loadOpenSplits(member: Member | null) {
 
     if (error) {
       console.error("Could not delete registration:", error);
-      alert("Failed to delete registration.");
+      alert(error.message ||"Failed to delete registration.");
       setSavingSplitId(null);
       return;
     }
@@ -422,7 +422,7 @@ async function loadOpenSplits(member: Member | null) {
 
     if (error) {
       console.error("Could not update flow:", error);
-      alert("Failed to update flow.");
+      alert(error.message ||"Failed to update flow.");
       setSavingSplitId(null);
       return;
     }
