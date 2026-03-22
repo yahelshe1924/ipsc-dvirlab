@@ -26,12 +26,19 @@ type DutyCardData = {
   split_completed: boolean;
 };
 
+type SplitRegistrationCardData = {
+  split_id: string;
+  split_number: number;
+  plates_count: number;
+};
+
 export default function HomePage() {
   const supabase = createClient();
   const router = useRouter();
 
   const [todayDuty, setTodayDuty] = useState<DutyCardData | null>(null);
   const [tomorrowDuty, setTomorrowDuty] = useState<DutyCardData | null>(null);
+  const [mySplitRegistrations, setMySplitRegistrations] = useState<SplitRegistrationCardData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,6 +85,79 @@ export default function HomePage() {
     };
   }
 
+  async function loadMySplitRegistrations() {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.error("Failed to get authenticated user:", userError);
+      setMySplitRegistrations([]);
+      return;
+    }
+
+    if (!user?.email) {
+      setMySplitRegistrations([]);
+      return;
+    }
+
+    const { data: memberData, error: memberError } = await supabase
+      .from("members")
+      .select("id")
+      .eq("email", user.email)
+      .maybeSingle();
+
+    if (memberError) {
+      console.error("Failed to load current member:", memberError);
+      setMySplitRegistrations([]);
+      return;
+    }
+
+    if (!memberData?.id) {
+      setMySplitRegistrations([]);
+      return;
+    }
+
+    const { data: registrationData, error: registrationError } = await supabase
+      .from("split_registrations")
+      .select(`
+        split_id,
+        plates_count,
+        splits!inner (
+          id,
+          split_number,
+          status
+        )
+      `)
+      .eq("member_id", memberData.id)
+      .neq("splits.status", "completed")
+      .order("split_number", { ascending: true, foreignTable: "splits" })
+      .limit(5);
+
+    if (registrationError) {
+      console.error("Failed to load split registrations:", registrationError);
+      setMySplitRegistrations([]);
+      return;
+    }
+
+    const parsed: SplitRegistrationCardData[] = (registrationData ?? [])
+      .map((row: any) => {
+        const split = Array.isArray(row.splits) ? row.splits[0] : row.splits;
+
+        if (!split?.id || split?.split_number == null) return null;
+
+        return {
+          split_id: split.id,
+          split_number: split.split_number,
+          plates_count: row.plates_count ?? 0,
+        };
+      })
+      .filter(Boolean) as SplitRegistrationCardData[];
+
+    setMySplitRegistrations(parsed);
+  }
+
   async function loadDuties() {
     setLoading(true);
 
@@ -96,6 +176,8 @@ export default function HomePage() {
 
       setTodayDuty(todayData);
       setTomorrowDuty(tomorrowData);
+
+      await loadMySplitRegistrations();
     } finally {
       setLoading(false);
     }
@@ -113,6 +195,45 @@ export default function HomePage() {
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>
       <section style={{ marginTop: 8 }}>
+        <div style={splitRegistrationCard}>
+          <div style={splitRegistrationHeader}>
+            <div>
+              <h2 style={sectionTitle}>My Split Plate Registrations</h2>
+              <p style={sectionSubtitle}>Your next registered split plate requests</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push("/splits")}
+              style={secondaryButton}
+            >
+              Open Splits
+            </button>
+          </div>
+
+          {loading ? (
+            <p style={mutedText}>Loading your split registrations...</p>
+          ) : mySplitRegistrations.length === 0 ? (
+            <p style={mutedText}>You are not registered for any upcoming splits.</p>
+          ) : (
+            <div style={splitRegistrationList}>
+              {mySplitRegistrations.map((item) => (
+                <div key={item.split_id} style={splitRegistrationRow}>
+                  <div style={splitRegistrationLeft}>
+                    <span style={splitNumberBadge}>P{item.split_number}</span>
+                  </div>
+
+                  <div style={splitRegistrationRight}>
+                    {item.plates_count} {item.plates_count === 1 ? "plate" : "plates"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 24 }}>
         <h2 style={sectionTitle}>Quick Actions</h2>
 
         <div style={quickActionsGrid}>
@@ -506,6 +627,77 @@ const infoValue: React.CSSProperties = {
   fontSize: 15,
   color: "#0f172a",
   fontWeight: 700,
+};
+
+const splitRegistrationCard: React.CSSProperties = {
+  padding: 18,
+  borderRadius: 18,
+  border: "1px solid #fde68a",
+  background: "#fffbeb",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+
+const splitRegistrationHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 14,
+};
+
+const splitRegistrationList: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  marginTop: 8,
+};
+
+const splitRegistrationRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: "12px 14px",
+  borderRadius: 12,
+  background: "#ffffff",
+  border: "1px solid #fde68a",
+};
+
+const splitRegistrationLeft: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const splitRegistrationRight: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#92400e",
+};
+
+const splitNumberBadge: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 52,
+  padding: "6px 12px",
+  borderRadius: 999,
+  background: "#fef3c7",
+  color: "#92400e",
+  border: "1px solid #fcd34d",
+  fontSize: 14,
+  fontWeight: 800,
+};
+
+const secondaryButton: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #fcd34d",
+  background: "#ffffff",
+  color: "#92400e",
+  cursor: "pointer",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
 };
 
 function primaryButton(disabled: boolean): React.CSSProperties {

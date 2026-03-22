@@ -173,7 +173,7 @@ export default function DayModal({
         ? `Tomorrow's duty: ${tomorrowAssigneeName}.`
         : `Tomorrow's duty: no one is assigned yet.`) +
       (nextDaySplitAssigneeName
-        ? `${nextDaySplitAssigneeName} will split the cells tomorrow.`
+        ? ` ${nextDaySplitAssigneeName} will split the cells tomorrow.`
         : ``)
     : null;
 
