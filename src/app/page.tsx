@@ -199,7 +199,6 @@ export default function HomePage() {
           <div style={splitRegistrationHeader}>
             <div>
               <h2 style={sectionTitle}>My Split Plate Registrations</h2>
-              <p style={sectionSubtitle}>Your next registered split plate requests</p>
             </div>
 
             <button
