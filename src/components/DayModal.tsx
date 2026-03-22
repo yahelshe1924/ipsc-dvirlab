@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase";
 import { getHolidayName } from "@/lib/holidays";
 import { getColor } from "@/lib/colors";
 import type { DutyAssignment, Member } from "@/types";
@@ -32,6 +33,8 @@ export default function DayModal({
   onSave,
   onRemoveAssignment,
 }: Props) {
+  const supabase = createClient();
+
   const [year, month, day] = dateKey.split("-").map(Number);
   const dateObj = new Date(year, month - 1, day);
   const today = new Date();
@@ -66,6 +69,7 @@ export default function DayModal({
   const [saving, setSaving] = useState(false);
   const [whatsappCopied, setWhatsappCopied] = useState(false);
   const [splitWhatsappCopied, setSplitWhatsappCopied] = useState(false);
+  const [nextDaySplitAssigneeName, setNextDaySplitAssigneeName] = useState<string | null>(null);
 
   const activePeople = members.filter((m) => m.active);
 
@@ -83,6 +87,39 @@ export default function DayModal({
       duty?.split_plate_count != null ? String(duty.split_plate_count) : ""
     );
   }, [duty, dateKey]);
+
+  useEffect(() => {
+    fetchNextDaySplitAssignee();
+  }, [dateKey, members]);
+
+  async function fetchNextDaySplitAssignee() {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const currentDate = new Date(year, month - 1, day);
+    const nextDate = new Date(currentDate);
+    nextDate.setDate(currentDate.getDate() + 1);
+
+    const nextDateKey = [
+      nextDate.getFullYear(),
+      String(nextDate.getMonth() + 1).padStart(2, "0"),
+      String(nextDate.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    const { data, error } = await supabase
+      .from("duty_assignments")
+      .select("split_assignee_id")
+      .eq("duty_date", nextDateKey)
+      .maybeSingle();
+
+    if (error || !data?.split_assignee_id) {
+      setNextDaySplitAssigneeName(null);
+      return;
+    }
+
+    const splitMember =
+      members.find((m) => m.id === data.split_assignee_id) ?? null;
+
+    setNextDaySplitAssigneeName(splitMember?.full_name ?? null);
+  }
 
   async function handleSave() {
     const payload: Partial<DutyAssignment> = {
@@ -134,7 +171,10 @@ export default function DayModal({
     ? `Today's iPSC medium change was completed by ${reporterName}. Volume changed: ${volumeMl} mL. ` +
       (tomorrowAssigneeName
         ? `Tomorrow's duty: ${tomorrowAssigneeName}.`
-        : `Tomorrow's duty: no one is assigned yet.`)
+        : `Tomorrow's duty: no one is assigned yet.`) +
+      (nextDaySplitAssigneeName
+        ? `${nextDaySplitAssigneeName} will split the cells tomorrow.`
+        : ``)
     : null;
 
   const splitWhatsappText =
