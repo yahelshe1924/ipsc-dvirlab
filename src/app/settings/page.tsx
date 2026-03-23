@@ -32,7 +32,8 @@ export default function SettingsPage() {
       } = await supabase.auth.getUser();
 
       if (authError || !user?.email) {
-        router.replace("/login");
+        router.replace("/");
+        router.refresh();
         return;
       }
 
