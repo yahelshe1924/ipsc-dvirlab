@@ -187,11 +187,6 @@ export default function HomePage() {
     router.push("/calendar");
   }
 
-  function handleOpenSplits(e: React.MouseEvent) {
-    e.stopPropagation();
-    router.push("/splits");
-  }
-
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>
       <section style={{ marginTop: 8 }}>
@@ -282,14 +277,18 @@ export default function HomePage() {
               </div>
 
               <div style={headerActionRow}>
-                <button
-                  onClick={handleOpenSplits}
-                  disabled={!todayDuty?.split_assignee_id}
-                  style={primaryButton(!todayDuty?.split_assignee_id)}
-                >
-                  Open Today’s Split
-                </button>
-              </div>
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    router.push(`/splits?open=${todayDuty?.split_assignee_id}`);
+  }}
+  disabled={!todayDuty?.split_assignee_id}
+  style={primaryButton(!todayDuty?.split_assignee_id)}
+>
+  Open Today’s Split
+</button>
+</div>
+
             </div>
 
             {loading ? (
