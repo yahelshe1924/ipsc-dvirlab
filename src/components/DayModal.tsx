@@ -89,12 +89,12 @@ export default function DayModal({
   }, [duty, dateKey]);
 
   useEffect(() => {
-    fetchNextDaySplitAssignee();
+    void fetchNextDaySplitAssignee();
   }, [dateKey, members]);
 
   async function fetchNextDaySplitAssignee() {
-    const [year, month, day] = dateKey.split("-").map(Number);
-    const currentDate = new Date(year, month - 1, day);
+    const [y, m, d] = dateKey.split("-").map(Number);
+    const currentDate = new Date(y, m - 1, d);
     const nextDate = new Date(currentDate);
     nextDate.setDate(currentDate.getDate() + 1);
 
@@ -128,9 +128,11 @@ export default function DayModal({
       notes,
 
       split_assignee_id: hasSplit ? splitAssigneeId || null : null,
+      split_passage_number:
+        hasSplit && splitPassageNumber !== "" ? Number(splitPassageNumber) : null,
+      split_plate_count:
+        hasSplit && splitPlateCount !== "" ? Number(splitPlateCount) : null,
 
-      split_passage_number: hasSplit ? duty?.split_passage_number ?? null : null,
-      split_plate_count: hasSplit ? duty?.split_plate_count ?? null : null,
       split_completed: hasSplit ? duty?.split_completed ?? false : false,
       split_completed_at: hasSplit ? duty?.split_completed_at ?? null : null,
     };
@@ -147,33 +149,60 @@ export default function DayModal({
   }
 
   async function handleSplitComplete() {
-  if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
+    if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
 
-  setSaving(true);
+    const dutyAssignmentId =
+      (duty as (DutyAssignment & { id?: string | null }) | null)?.id ?? null;
 
-  // 1. עדכון duty_assignments (כמו שיש עכשיו)
-  await onSave(dateKey, {
-    split_assignee_id: splitAssigneeId,
-    split_passage_number: Number(splitPassageNumber),
-    split_plate_count: Number(splitPlateCount),
-    split_completed: true,
-    split_completed_at: new Date().toISOString(),
-  });
+    const completedAt = new Date().toISOString();
 
-  // 2. עדכון טבלת splits ← זה החלק שחסר!
-  await supabase
-    .from("splits")
-    .update({
-      status: "completed",
-      performed_date: dateKey,
-      completed_at: new Date().toISOString(),
-      completed_by_member_id: loggedInMember.id,
-      actual_plate_count: Number(splitPlateCount),
-    })
-    .eq("duty_date", dateKey); // או לפי split_id אם יש לך
+    setSaving(true);
 
-  setSaving(false);
-}
+    try {
+      const payload: Partial<DutyAssignment> = {
+        split_assignee_id: splitAssigneeId,
+        split_passage_number: Number(splitPassageNumber),
+        split_plate_count: Number(splitPlateCount),
+        split_completed: true,
+        split_completed_at: completedAt,
+      };
+
+      await onSave(dateKey, payload);
+
+      if (dutyAssignmentId) {
+        const { data: split, error: splitLookupError } = await supabase
+          .from("splits")
+          .select("id")
+          .eq("duty_assignment_id", dutyAssignmentId)
+          .eq("status", "open")
+          .maybeSingle();
+
+        if (splitLookupError) {
+          console.error("Could not find matching split:", splitLookupError);
+        } else if (split?.id) {
+          const { error: updateSplitError } = await supabase
+            .from("splits")
+            .update({
+              status: "completed",
+              performed_date: dateKey,
+              completed_at: completedAt,
+              completed_by_member_id: loggedInMember.id,
+              actual_plate_count: Number(splitPlateCount),
+            })
+            .eq("id", split.id);
+
+          if (updateSplitError) {
+            console.error("Could not update split record:", updateSplitError);
+            alert("The duty was marked as completed, but the split record was not updated.");
+          }
+        }
+      } else {
+        console.warn("No duty assignment id found, so the matching split could not be updated.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const reporterName =
     members.find((m) => m.id === selectedMemberId)?.full_name ??
@@ -484,14 +513,17 @@ export default function DayModal({
                         <button
                           type="button"
                           onClick={handleSplitComplete}
+                          disabled={saving}
                           style={{
                             ...chipButton,
                             background: "#ecfeff",
                             borderColor: "#67e8f9",
                             color: "#0e7490",
+                            opacity: saving ? 0.7 : 1,
+                            cursor: saving ? "not-allowed" : "pointer",
                           }}
                         >
-                          Mark split as completed
+                          {saving ? "Saving..." : "Mark split as completed"}
                         </button>
 
                         {duty?.split_completed && (
