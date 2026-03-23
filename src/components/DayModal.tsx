@@ -146,7 +146,7 @@ export default function DayModal({
     onClose();
   }
 
-  aasync function handleSplitComplete() {
+  async function handleSplitComplete() {
   if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
 
   setSaving(true);
