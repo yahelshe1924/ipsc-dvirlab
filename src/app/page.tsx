@@ -189,7 +189,14 @@ export default function HomePage() {
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>
-      <section style={{ marginTop: 8 }}>
+      <div style={topBar}>
+  <div style={pageTitle}>Home</div>
+
+  <Link href="/settings" style={gearButton} aria-label="Settings">
+    ⚙
+  </Link>
+</div>
+      <section style={{ marginTop: 16 }}>
         <div style={splitRegistrationCard}>
           <div style={splitRegistrationHeader}>
             <div>
@@ -710,3 +717,32 @@ function primaryButton(disabled: boolean): React.CSSProperties {
     whiteSpace: "nowrap",
   };
 }
+
+const topBar: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginTop: 16,
+  marginBottom: 8,
+};
+
+const pageTitle: React.CSSProperties = {
+  fontSize: 28,
+  fontWeight: 700,
+  color: "#0f172a",
+};
+
+const gearButton: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textDecoration: "none",
+  fontSize: 20,
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+  cursor: "pointer",
+};
