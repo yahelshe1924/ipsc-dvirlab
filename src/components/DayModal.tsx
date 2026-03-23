@@ -146,21 +146,34 @@ export default function DayModal({
     onClose();
   }
 
-  async function handleSplitComplete() {
-    if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
+  aasync function handleSplitComplete() {
+  if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
 
-    const payload: Partial<DutyAssignment> = {
-      split_assignee_id: splitAssigneeId,
-      split_passage_number: Number(splitPassageNumber),
-      split_plate_count: Number(splitPlateCount),
-      split_completed: true,
-      split_completed_at: new Date().toISOString(),
-    };
+  setSaving(true);
 
-    setSaving(true);
-    await onSave(dateKey, payload);
-    setSaving(false);
-  }
+  // 1. עדכון duty_assignments (כמו שיש עכשיו)
+  await onSave(dateKey, {
+    split_assignee_id: splitAssigneeId,
+    split_passage_number: Number(splitPassageNumber),
+    split_plate_count: Number(splitPlateCount),
+    split_completed: true,
+    split_completed_at: new Date().toISOString(),
+  });
+
+  // 2. עדכון טבלת splits ← זה החלק שחסר!
+  await supabase
+    .from("splits")
+    .update({
+      status: "completed",
+      performed_date: dateKey,
+      completed_at: new Date().toISOString(),
+      completed_by_member_id: loggedInMember.id,
+      actual_plate_count: Number(splitPlateCount),
+    })
+    .eq("duty_date", dateKey); // או לפי split_id אם יש לך
+
+  setSaving(false);
+}
 
   const reporterName =
     members.find((m) => m.id === selectedMemberId)?.full_name ??
