@@ -211,22 +211,20 @@ export default function HomePage() {
   }
 
   async function handleLogin() {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${origin}/auth/callback`,
-        queryParams: {
-          prompt: "select_account",
-        },
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: "https://ipsc-dvirlab.vercel.app/calendar",
+      queryParams: {
+        prompt: "select_account",
       },
-    });
+    },
+  });
 
-    if (error) {
-      console.error("Login failed:", error);
-    }
+  if (error) {
+    console.error("Login failed:", error);
   }
+}
 
   function handleOpenCalendar() {
     router.push("/calendar");
