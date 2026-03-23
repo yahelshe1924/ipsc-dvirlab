@@ -38,8 +38,11 @@ export default function HomePage() {
 
   const [todayDuty, setTodayDuty] = useState<DutyCardData | null>(null);
   const [tomorrowDuty, setTomorrowDuty] = useState<DutyCardData | null>(null);
-  const [mySplitRegistrations, setMySplitRegistrations] = useState<SplitRegistrationCardData[]>([]);
+  const [mySplitRegistrations, setMySplitRegistrations] = useState<
+    SplitRegistrationCardData[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
     void loadDuties();
@@ -162,6 +165,30 @@ export default function HomePage() {
     setLoading(true);
 
     try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error("Failed to get authenticated user:", userError);
+        setIsAuthenticated(false);
+        setTodayDuty(null);
+        setTomorrowDuty(null);
+        setMySplitRegistrations([]);
+        return;
+      }
+
+      if (!user) {
+        setIsAuthenticated(false);
+        setTodayDuty(null);
+        setTomorrowDuty(null);
+        setMySplitRegistrations([]);
+        return;
+      }
+
+      setIsAuthenticated(true);
+
       const today = new Date();
       const tomorrow = new Date();
       tomorrow.setDate(today.getDate() + 1);
@@ -183,19 +210,73 @@ export default function HomePage() {
     }
   }
 
+  async function handleLogin() {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${origin}/auth/callback`,
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Login failed:", error);
+    }
+  }
+
   function handleOpenCalendar() {
     router.push("/calendar");
+  }
+
+  if (loading || isAuthenticated === null) {
+    return (
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={topBar}>
+          <div style={pageTitle}>Home</div>
+        </div>
+
+        <div style={loginCard}>
+          <h2 style={sectionTitle}>Loading...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={topBar}>
+          <div style={pageTitle}>Home</div>
+        </div>
+
+        <div style={loginCard}>
+          <h2 style={sectionTitle}>Sign in</h2>
+          <p style={mutedText}>
+            Please sign in with your Google account to access the duty system.
+          </p>
+
+          <button onClick={handleLogin} style={loginButton}>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto" }}>
       <div style={topBar}>
-  <div style={pageTitle}>Home</div>
+        <div style={pageTitle}>Home</div>
 
-  <Link href="/settings" style={gearButton} aria-label="Settings">
-    ⚙
-  </Link>
-</div>
+        <Link href="/settings" style={gearButton} aria-label="Settings">
+          ⚙
+        </Link>
+      </div>
+
       <section style={{ marginTop: 16 }}>
         <div style={splitRegistrationCard}>
           <div style={splitRegistrationHeader}>
@@ -225,7 +306,8 @@ export default function HomePage() {
                   </div>
 
                   <div style={splitRegistrationRight}>
-                    {item.plates_count} {item.plates_count === 1 ? "plate" : "plates"}
+                    {item.plates_count}{" "}
+                    {item.plates_count === 1 ? "plate" : "plates"}
                   </div>
                 </div>
               ))}
@@ -284,18 +366,17 @@ export default function HomePage() {
               </div>
 
               <div style={headerActionRow}>
-<button
-  onClick={(e) => {
-    e.stopPropagation();
-    router.push(`/splits?open=${todayDuty?.split_assignee_id}`);
-  }}
-  disabled={!todayDuty?.split_assignee_id}
-  style={primaryButton(!todayDuty?.split_assignee_id)}
->
-  Open Today’s Split
-</button>
-</div>
-
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/splits?open=${todayDuty?.split_assignee_id}`);
+                  }}
+                  disabled={!todayDuty?.split_assignee_id}
+                  style={primaryButton(!todayDuty?.split_assignee_id)}
+                >
+                  Open Today’s Split
+                </button>
+              </div>
             </div>
 
             {loading ? (
@@ -307,12 +388,20 @@ export default function HomePage() {
                 <div style={badgeRow}>
                   <Badge label="Medium change completed" variant="green" />
                   <Badge
-                    label={todayDuty.split_assignee_id ? "Split duty scheduled" : "No split today"}
+                    label={
+                      todayDuty.split_assignee_id
+                        ? "Split duty scheduled"
+                        : "No split today"
+                    }
                     variant={todayDuty.split_assignee_id ? "blue" : "gray"}
                   />
                   {todayDuty.split_assignee_id && (
                     <Badge
-                      label={todayDuty.split_completed ? "Split completed" : "Split pending"}
+                      label={
+                        todayDuty.split_completed
+                          ? "Split completed"
+                          : "Split pending"
+                      }
                       variant={todayDuty.split_completed ? "green" : "amber"}
                     />
                   )}
@@ -323,7 +412,8 @@ export default function HomePage() {
                   <InfoItem
                     label="Volume changed"
                     value={
-                      todayDuty.volume_ml !== null && todayDuty.volume_ml !== undefined
+                      todayDuty.volume_ml !== null &&
+                      todayDuty.volume_ml !== undefined
                         ? `${todayDuty.volume_ml} mL`
                         : "—"
                     }
@@ -351,12 +441,20 @@ export default function HomePage() {
                 <div style={badgeRow}>
                   <Badge label="Upcoming duty" variant="purple" />
                   <Badge
-                    label={tomorrowDuty.split_assignee_id ? "Split duty scheduled" : "No split planned"}
+                    label={
+                      tomorrowDuty.split_assignee_id
+                        ? "Split duty scheduled"
+                        : "No split planned"
+                    }
                     variant={tomorrowDuty.split_assignee_id ? "blue" : "gray"}
                   />
                   {tomorrowDuty.split_assignee_id && (
                     <Badge
-                      label={tomorrowDuty.split_completed ? "Split completed" : "Split pending"}
+                      label={
+                        tomorrowDuty.split_completed
+                          ? "Split completed"
+                          : "Split pending"
+                      }
                       variant={tomorrowDuty.split_completed ? "green" : "amber"}
                     />
                   )}
@@ -438,7 +536,12 @@ function CalendarIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="3" y="5" width="18" height="16" rx="3" stroke="#0f172a" strokeWidth="1.8" />
-      <path d="M8 3v4M16 3v4M3 10h18" stroke="#0f172a" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M8 3v4M16 3v4M3 10h18"
+        stroke="#0f172a"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -510,6 +613,56 @@ const badgeStyles = {
     color: "#6d28d9",
     border: "#ddd6fe",
   },
+};
+
+const topBar: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginTop: 16,
+  marginBottom: 12,
+};
+
+const pageTitle: React.CSSProperties = {
+  fontSize: 28,
+  fontWeight: 700,
+  color: "#0f172a",
+};
+
+const gearButton: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textDecoration: "none",
+  fontSize: 20,
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+  cursor: "pointer",
+};
+
+const loginCard: React.CSSProperties = {
+  marginTop: 24,
+  padding: 24,
+  borderRadius: 18,
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  maxWidth: 480,
+};
+
+const loginButton: React.CSSProperties = {
+  marginTop: 12,
+  padding: "12px 16px",
+  borderRadius: 10,
+  border: "1px solid #cbd5e1",
+  background: "#0f172a",
+  color: "#ffffff",
+  cursor: "pointer",
+  fontWeight: 700,
 };
 
 const sectionTitle: React.CSSProperties = {
@@ -717,32 +870,3 @@ function primaryButton(disabled: boolean): React.CSSProperties {
     whiteSpace: "nowrap",
   };
 }
-
-const topBar: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginTop: 16,
-  marginBottom: 8,
-};
-
-const pageTitle: React.CSSProperties = {
-  fontSize: 28,
-  fontWeight: 700,
-  color: "#0f172a",
-};
-
-const gearButton: React.CSSProperties = {
-  width: 40,
-  height: 40,
-  borderRadius: "50%",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textDecoration: "none",
-  fontSize: 20,
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
-  cursor: "pointer",
-};

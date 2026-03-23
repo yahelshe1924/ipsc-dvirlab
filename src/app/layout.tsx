@@ -42,6 +42,9 @@ export default function RootLayout({
                 <Link href="/archive" style={navLink}>
                   Archive
                 </Link>
+                <Link href="/settings" style={navLink}>
+                  Settings
+                </Link>
               </nav>
             </div>
           </header>
