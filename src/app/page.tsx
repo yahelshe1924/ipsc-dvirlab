@@ -5,19 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-type DutyRow = {
-  duty_date: string;
-  member_id?: string | null;
-  volume_ml?: number | null;
-  split_assignee_id?: string | null;
-  split_completed?: boolean | null;
-};
-
-type MemberRow = {
-  id: string;
-  full_name: string;
-};
-
 type DutyCardData = {
   duty_date: string;
   member_name: string | null;
@@ -32,6 +19,14 @@ type SplitRegistrationCardData = {
   plates_count: number;
 };
 
+type DutyAssignmentWithMember = {
+  duty_date: string;
+  volume_ml?: number | null;
+  split_assignee_id?: string | null;
+  split_completed?: boolean | null;
+  members?: { full_name?: string | null } | { full_name?: string | null }[] | null;
+};
+
 export default function HomePage() {
   const supabase = createClient();
   const router = useRouter();
@@ -41,128 +36,32 @@ export default function HomePage() {
   const [mySplitRegistrations, setMySplitRegistrations] = useState<
     SplitRegistrationCardData[]
   >([]);
-  const [loading, setLoading] = useState(true);
+
+  const [authLoading, setAuthLoading] = useState(true);
+  const [dutiesLoading, setDutiesLoading] = useState(true);
+  const [registrationsLoading, setRegistrationsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    void loadDuties();
+    void loadHomeData();
   }, []);
 
-  async function loadDutyByDate(dateStr: string): Promise<DutyCardData | null> {
-    const { data, error } = await supabase
-      .from("duty_assignments")
-      .select("duty_date, member_id, volume_ml, split_assignee_id, split_completed")
-      .eq("duty_date", dateStr)
-      .maybeSingle();
-
-    if (error) {
-      console.error(`Failed to load duty for ${dateStr}:`, error);
-      return null;
-    }
-
-    if (!data) return null;
-
-    const duty = data as DutyRow;
-    let memberName: string | null = null;
-
-    if (duty.member_id) {
-      const { data: memberData, error: memberError } = await supabase
-        .from("members")
-        .select("id, full_name")
-        .eq("id", duty.member_id)
-        .maybeSingle();
-
-      if (memberError) {
-        console.error("Failed to load member:", memberError);
-      } else {
-        memberName = (memberData as MemberRow | null)?.full_name ?? null;
-      }
-    }
+  function normalizeDutyRow(row: DutyAssignmentWithMember): DutyCardData {
+    const member = Array.isArray(row.members) ? row.members[0] : row.members;
 
     return {
-      duty_date: duty.duty_date,
-      member_name: memberName,
-      volume_ml: duty.volume_ml ?? null,
-      split_assignee_id: duty.split_assignee_id ?? null,
-      split_completed: Boolean(duty.split_completed),
+      duty_date: row.duty_date,
+      member_name: member?.full_name ?? null,
+      volume_ml: row.volume_ml ?? null,
+      split_assignee_id: row.split_assignee_id ?? null,
+      split_completed: Boolean(row.split_completed),
     };
   }
 
-  async function loadMySplitRegistrations() {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      console.error("Failed to get authenticated user:", userError);
-      setMySplitRegistrations([]);
-      return;
-    }
-
-    if (!user?.email) {
-      setMySplitRegistrations([]);
-      return;
-    }
-
-    const { data: memberData, error: memberError } = await supabase
-      .from("members")
-      .select("id")
-      .eq("email", user.email)
-      .maybeSingle();
-
-    if (memberError) {
-      console.error("Failed to load current member:", memberError);
-      setMySplitRegistrations([]);
-      return;
-    }
-
-    if (!memberData?.id) {
-      setMySplitRegistrations([]);
-      return;
-    }
-
-    const { data: registrationData, error: registrationError } = await supabase
-      .from("split_registrations")
-      .select(`
-        split_id,
-        plates_count,
-        splits!inner (
-          id,
-          split_number,
-          status
-        )
-      `)
-      .eq("member_id", memberData.id)
-      .neq("splits.status", "completed")
-      .order("split_number", { ascending: true, foreignTable: "splits" })
-      .limit(5);
-
-    if (registrationError) {
-      console.error("Failed to load split registrations:", registrationError);
-      setMySplitRegistrations([]);
-      return;
-    }
-
-    const parsed: SplitRegistrationCardData[] = (registrationData ?? [])
-      .map((row: any) => {
-        const split = Array.isArray(row.splits) ? row.splits[0] : row.splits;
-
-        if (!split?.id || split?.split_number == null) return null;
-
-        return {
-          split_id: split.id,
-          split_number: split.split_number,
-          plates_count: row.plates_count ?? 0,
-        };
-      })
-      .filter(Boolean) as SplitRegistrationCardData[];
-
-    setMySplitRegistrations(parsed);
-  }
-
-  async function loadDuties() {
-    setLoading(true);
+  async function loadHomeData() {
+    setAuthLoading(true);
+    setDutiesLoading(true);
+    setRegistrationsLoading(true);
 
     try {
       const {
@@ -176,18 +75,25 @@ export default function HomePage() {
         setTodayDuty(null);
         setTomorrowDuty(null);
         setMySplitRegistrations([]);
+        setAuthLoading(false);
+        setDutiesLoading(false);
+        setRegistrationsLoading(false);
         return;
       }
 
-      if (!user) {
+      if (!user?.email) {
         setIsAuthenticated(false);
         setTodayDuty(null);
         setTomorrowDuty(null);
         setMySplitRegistrations([]);
+        setAuthLoading(false);
+        setDutiesLoading(false);
+        setRegistrationsLoading(false);
         return;
       }
 
       setIsAuthenticated(true);
+      setAuthLoading(false);
 
       const today = new Date();
       const tomorrow = new Date();
@@ -196,41 +102,131 @@ export default function HomePage() {
       const todayStr = today.toISOString().slice(0, 10);
       const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
-      const [todayData, tomorrowData] = await Promise.all([
-        loadDutyByDate(todayStr),
-        loadDutyByDate(tomorrowStr),
-      ]);
+      const memberPromise = supabase
+        .from("members")
+        .select("id")
+        .eq("email", user.email)
+        .maybeSingle();
 
-      setTodayDuty(todayData);
-      setTomorrowDuty(tomorrowData);
+      const dutiesPromise = supabase
+        .from("duty_assignments")
+        .select(`
+          duty_date,
+          volume_ml,
+          split_assignee_id,
+          split_completed,
+          members:members!duty_assignments_member_id_fkey (
+              full_name
+            )
+        `)
+        .in("duty_date", [todayStr, tomorrowStr]);
 
-      await loadMySplitRegistrations();
-    } finally {
-      setLoading(false);
+      const [
+        { data: memberData, error: memberError },
+        { data: dutiesData, error: dutiesError },
+      ] = await Promise.all([memberPromise, dutiesPromise]);
+
+      if (dutiesError) {
+        console.error("Failed to load duties:", dutiesError);
+        setTodayDuty(null);
+        setTomorrowDuty(null);
+      } else {
+        const duties = (dutiesData ?? []) as DutyAssignmentWithMember[];
+
+        const todayRow = duties.find((row) => row.duty_date === todayStr) ?? null;
+        const tomorrowRow = duties.find((row) => row.duty_date === tomorrowStr) ?? null;
+
+        setTodayDuty(todayRow ? normalizeDutyRow(todayRow) : null);
+        setTomorrowDuty(tomorrowRow ? normalizeDutyRow(tomorrowRow) : null);
+      }
+
+      setDutiesLoading(false);
+
+      if (memberError) {
+        console.error("Failed to load current member:", memberError);
+        setMySplitRegistrations([]);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      if (!memberData?.id) {
+        setMySplitRegistrations([]);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      const { data: registrationData, error: registrationError } = await supabase
+        .from("split_registrations")
+        .select(`
+          split_id,
+          plates_count,
+          splits!inner (
+            id,
+            split_number,
+            status
+          )
+        `)
+        .eq("member_id", memberData.id)
+        .neq("splits.status", "completed")
+        .order("split_number", { ascending: true, foreignTable: "splits" })
+        .limit(5);
+
+      if (registrationError) {
+        console.error("Failed to load split registrations:", registrationError);
+        setMySplitRegistrations([]);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      const parsed: SplitRegistrationCardData[] = (registrationData ?? [])
+        .map((row: any) => {
+          const split = Array.isArray(row.splits) ? row.splits[0] : row.splits;
+
+          if (!split?.id || split?.split_number == null) return null;
+
+          return {
+            split_id: split.id,
+            split_number: split.split_number,
+            plates_count: row.plates_count ?? 0,
+          };
+        })
+        .filter(Boolean) as SplitRegistrationCardData[];
+
+      setMySplitRegistrations(parsed);
+      setRegistrationsLoading(false);
+    } catch (error) {
+      console.error("Failed to load home data:", error);
+      setIsAuthenticated(false);
+      setTodayDuty(null);
+      setTomorrowDuty(null);
+      setMySplitRegistrations([]);
+      setAuthLoading(false);
+      setDutiesLoading(false);
+      setRegistrationsLoading(false);
     }
   }
 
   async function handleLogin() {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: "https://ipsc-dvirlab.vercel.app/calendar",
-      queryParams: {
-        prompt: "select_account",
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: "https://ipsc-dvirlab.vercel.app/calendar",
+        queryParams: {
+          prompt: "select_account",
+        },
       },
-    },
-  });
+    });
 
-  if (error) {
-    console.error("Login failed:", error);
+    if (error) {
+      console.error("Login failed:", error);
+    }
   }
-}
 
   function handleOpenCalendar() {
     router.push("/calendar");
   }
 
-  if (loading || isAuthenticated === null) {
+  if (authLoading || isAuthenticated === null) {
     return (
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div style={topBar}>
@@ -291,7 +287,7 @@ export default function HomePage() {
             </button>
           </div>
 
-          {loading ? (
+          {registrationsLoading ? (
             <p style={mutedText}>Loading your split registrations...</p>
           ) : mySplitRegistrations.length === 0 ? (
             <p style={mutedText}>You are not registered for any upcoming splits.</p>
@@ -304,8 +300,7 @@ export default function HomePage() {
                   </div>
 
                   <div style={splitRegistrationRight}>
-                    {item.plates_count}{" "}
-                    {item.plates_count === 1 ? "plate" : "plates"}
+                    {item.plates_count} {item.plates_count === 1 ? "plate" : "plates"}
                   </div>
                 </div>
               ))}
@@ -377,7 +372,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {loading ? (
+            {dutiesLoading ? (
               <p style={mutedText}>Loading today’s duty...</p>
             ) : !todayDuty ? (
               <p style={mutedText}>No duty assigned for today</p>
@@ -430,7 +425,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {loading ? (
+            {dutiesLoading ? (
               <p style={mutedText}>Loading tomorrow’s duty...</p>
             ) : !tomorrowDuty ? (
               <p style={mutedText}>No duty assigned for tomorrow</p>
