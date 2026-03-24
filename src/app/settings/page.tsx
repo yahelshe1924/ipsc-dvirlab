@@ -9,7 +9,16 @@ type MemberRow = {
   id: string;
   full_name: string;
   medium_replacement_calendar_enabled: boolean;
+  email_on_assignment: boolean;
+  email_on_removal: boolean;
+  email_on_self_assignment: boolean;
 };
+
+type PreferenceField =
+  | "medium_replacement_calendar_enabled"
+  | "email_on_assignment"
+  | "email_on_removal"
+  | "email_on_self_assignment";
 
 export default function SettingsPage() {
   const supabase = createClient();
@@ -39,7 +48,14 @@ export default function SettingsPage() {
 
       const { data, error } = await supabase
         .from("members")
-        .select("id, full_name, medium_replacement_calendar_enabled")
+        .select(`
+          id,
+          full_name,
+          medium_replacement_calendar_enabled,
+          email_on_assignment,
+          email_on_removal,
+          email_on_self_assignment
+        `)
         .eq("email", user.email)
         .single();
 
@@ -49,14 +65,14 @@ export default function SettingsPage() {
         return;
       }
 
-      setMember(data);
+      setMember(data as MemberRow);
       setLoading(false);
     }
 
-    loadData();
+    void loadData();
   }, [router, supabase]);
 
-  async function handleToggleCalendar(value: boolean) {
+  async function handlePreferenceChange(field: PreferenceField, value: boolean) {
     if (!member) return;
 
     setSaving(true);
@@ -64,7 +80,7 @@ export default function SettingsPage() {
 
     const { error } = await supabase
       .from("members")
-      .update({ medium_replacement_calendar_enabled: value })
+      .update({ [field]: value })
       .eq("id", member.id);
 
     if (error) {
@@ -75,7 +91,7 @@ export default function SettingsPage() {
 
     setMember({
       ...member,
-      medium_replacement_calendar_enabled: value,
+      [field]: value,
     });
 
     setSaving(false);
@@ -93,14 +109,16 @@ export default function SettingsPage() {
       return;
     }
 
-    router.replace("/login");
+    router.replace("/");
     router.refresh();
   }
 
   if (loading) {
     return (
       <main style={pageStyle}>
-        <div style={cardStyle}>Loading settings...</div>
+        <div style={containerStyle}>
+          <div style={cardStyle}>Loading settings...</div>
+        </div>
       </main>
     );
   }
@@ -140,7 +158,7 @@ export default function SettingsPage() {
             <div>
               <div style={labelStyle}>Add medium replacement events to my calendar</div>
               <div style={hintStyle}>
-                When you register as a medium replacement, the app can automatically
+                When you are assigned a medium-change duty, the app can automatically
                 create a calendar event only for your user.
               </div>
             </div>
@@ -149,7 +167,12 @@ export default function SettingsPage() {
               <input
                 type="checkbox"
                 checked={!!member?.medium_replacement_calendar_enabled}
-                onChange={(e) => handleToggleCalendar(e.target.checked)}
+                onChange={(e) =>
+                  handlePreferenceChange(
+                    "medium_replacement_calendar_enabled",
+                    e.target.checked
+                  )
+                }
                 disabled={saving}
                 style={checkboxStyle}
               />
@@ -157,6 +180,84 @@ export default function SettingsPage() {
                 {member?.medium_replacement_calendar_enabled ? "On" : "Off"}
               </span>
             </label>
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={sectionTitleStyle}>Email preferences</div>
+
+          <div style={settingsListStyle}>
+            <div style={toggleRowStyle}>
+              <div>
+                <div style={labelStyle}>Email me when I am assigned a duty</div>
+                <div style={hintStyle}>
+                  Receive an email when another lab member assigns you a
+                  medium-change duty.
+                </div>
+              </div>
+
+              <label style={switchLabelStyle}>
+                <input
+                  type="checkbox"
+                  checked={!!member?.email_on_assignment}
+                  onChange={(e) =>
+                    handlePreferenceChange("email_on_assignment", e.target.checked)
+                  }
+                  disabled={saving}
+                  style={checkboxStyle}
+                />
+                <span>{member?.email_on_assignment ? "On" : "Off"}</span>
+              </label>
+            </div>
+
+            <div style={toggleRowStyle}>
+              <div>
+                <div style={labelStyle}>Email me when I am removed from a duty</div>
+                <div style={hintStyle}>
+                  Receive an email if a duty assigned to you is reassigned to
+                  someone else.
+                </div>
+              </div>
+
+              <label style={switchLabelStyle}>
+                <input
+                  type="checkbox"
+                  checked={!!member?.email_on_removal}
+                  onChange={(e) =>
+                    handlePreferenceChange("email_on_removal", e.target.checked)
+                  }
+                  disabled={saving}
+                  style={checkboxStyle}
+                />
+                <span>{member?.email_on_removal ? "On" : "Off"}</span>
+              </label>
+            </div>
+
+            <div style={toggleRowStyle}>
+              <div>
+                <div style={labelStyle}>Email me when I assign myself</div>
+                <div style={hintStyle}>
+                  Receive an email confirmation even when you assign the duty to
+                  yourself.
+                </div>
+              </div>
+
+              <label style={switchLabelStyle}>
+                <input
+                  type="checkbox"
+                  checked={!!member?.email_on_self_assignment}
+                  onChange={(e) =>
+                    handlePreferenceChange(
+                      "email_on_self_assignment",
+                      e.target.checked
+                    )
+                  }
+                  disabled={saving}
+                  style={checkboxStyle}
+                />
+                <span>{member?.email_on_self_assignment ? "On" : "Off"}</span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -227,6 +328,11 @@ const toggleRowStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 16,
   flexWrap: "wrap",
+};
+
+const settingsListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 18,
 };
 
 const labelStyle: React.CSSProperties = {

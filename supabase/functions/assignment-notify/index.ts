@@ -1,11 +1,12 @@
 /**
  * supabase/functions/assignment-notify/index.ts
  * ------------------------------------------------
- * VERSION: V4-SECONDARY-CALENDAR
+
  *
  * Behavior:
  * - No email is sent if the user changed their own assignment
- * - Calendar events ARE still created for self-assignments
+* - Calendar events are created only if the assignee enabled calendar sync
+* - Self-assignments still skip email notifications
  * - All Google Calendar events are created in a secondary calendar
  * - No reminders are set on the organizer side
  * - Extensive logs included for debugging
@@ -253,32 +254,36 @@ Your iPSC medium-change duty on ${duty_date} has been reassigned by ${changerNam
 
   let newEventId: string | null = null;
 
-  if (newMember) {
-    if (new_member_id === changed_by_id) {
-      console.log(`[${VERSION}] Self assignment → no email`);
-    } else {
-      await sendEmail(
-        newMember.email,
-        `You're assigned: iPSC medium change on ${duty_date}`,
-        `Hi ${newMember.full_name},
-
-VERSION ${VERSION}
+ if (newMember) {
+  if (new_member_id === changed_by_id) {
+    console.log(`[${VERSION}] Self assignment → no email`);
+  } else {
+    await sendEmail(
+      newMember.email,
+      `You're assigned: iPSC medium change on ${duty_date}`,
+      `Hi ${newMember.full_name},
 
 You have been assigned the iPSC medium-change duty on ${duty_date} by ${changerName}.
 
 Please log in to iPSC-DvirLab to confirm and report when done.
 
 — iPSC-DvirLab`,
-        gmailToken
-      );
-    }
+      gmailToken
+    );
+  }
 
+  // 
+  if (newMember.medium_replacement_calendar_enabled === false) {
+    console.log(`[${VERSION}] Skipping calendar event (user preference OFF)`);
+    newEventId = null;
+  } else {
     newEventId = await createCalendarEvent(
       newMember.email,
       duty_date,
       gcalToken
     );
   }
+}
 
   /* ── Save calendar event id ── */
 
