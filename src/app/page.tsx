@@ -5,869 +5,1007 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-type Member = {
-  id: string;
-  full_name: string;
-  email: string;
+type DutyCardData = {
+  duty_date: string;
+  member_name: string | null;
+  volume_ml: number | null;
+  split_assignee_id: string | null;
+  split_completed: boolean;
 };
 
-type SplitRow = {
-  id: string;
-  batch_id: string;
+type SplitRegistrationCardData = {
+  split_id: string;
   split_number: number;
-  status: "open" | "completed" | "cancelled";
-  performed_date: string | null;
-  completed_at: string | null;
-  completed_by_member_id: string | null;
-  duty_assignment_id: string | null;
-  maintenance_plate_count: number;
-  flow_plate_count: number;
-  actual_plate_count: number | null;
-  created_at: string;
-};
-
-type SplitSummary = {
-  user_plates: number;
-  maintenance: number;
-  flow: number;
-  total: number;
-};
-
-type SplitRegistrationRow = {
-  member_id: string;
   plates_count: number;
-  members: {
-    full_name: string;
-  } | null;
 };
 
-type SplitRegistrationItem = {
+type TodaySplitRegistrationItem = {
   member_id: string;
   member_name: string;
   plates_count: number;
 };
 
-type SplitCardData = SplitRow & {
-  summary: SplitSummary;
-  myRegistration: number | null;
-  registrations: SplitRegistrationItem[];
+type DutyAssignmentWithMember = {
+  duty_date: string;
+  volume_ml?: number | null;
+  split_assignee_id?: string | null;
+  split_completed?: boolean | null;
+  members?: { full_name?: string | null } | { full_name?: string | null }[] | null;
 };
 
-export default function SplitsPage() {
+export default function HomePage() {
   const supabase = createClient();
+  const router = useRouter();
 
-  const [loggedInMember, setLoggedInMember] = useState<Member | null>(null);
-  const [splits, setSplits] = useState<SplitCardData[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [savingSplitId, setSavingSplitId] = useState<string | null>(null);
-
-  const [editingSplitId, setEditingSplitId] = useState<string | null>(null);
-  const [platesInput, setPlatesInput] = useState<string>("1");
-
-  const [editingFlowSplitId, setEditingFlowSplitId] = useState<string | null>(null);
-  const [flowInput, setFlowInput] = useState<string>("0");
-
-  const [expandedRegistrationsSplitId, setExpandedRegistrationsSplitId] = useState<string | null>(null);
-
-  const [resetting, setResetting] = useState(false);
-  const [resetStartNumber, setResetStartNumber] = useState<string>("11");
+  const [todayDuty, setTodayDuty] = useState<DutyCardData | null>(null);
+  const [tomorrowDuty, setTomorrowDuty] = useState<DutyCardData | null>(null);
+  const [mySplitRegistrations, setMySplitRegistrations] = useState<
+    SplitRegistrationCardData[]
+  >([]);
+const [todaySplitModalOpen, setTodaySplitModalOpen] = useState(false);
+const [todaySplitModalLoading, setTodaySplitModalLoading] = useState(false);
+const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
+  TodaySplitRegistrationItem[]
+>([]);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [dutiesLoading, setDutiesLoading] = useState(true);
+  const [registrationsLoading, setRegistrationsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    void initializePage();
+    void loadHomeData();
   }, []);
 
-  async function initializePage() {
-    setLoading(true);
-    try {
-      const member = await loadLoggedInMember();
-      setLoggedInMember(member);
-      await loadOpenSplits(member);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadLoggedInMember(): Promise<Member | null> {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user?.email) {
-      console.error("Could not get auth user:", authError);
-      return null;
-    }
-
-    const { data, error } = await supabase
-      .from("members")
-      .select("id, full_name, email")
-      .eq("email", user.email)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Could not load member:", error);
-      return null;
-    }
-
-    return data ?? null;
-  }
-
-  async function loadOpenSplits(member: Member | null) {
-    const { data: splitRows, error: splitsError } = await supabase
-      .from("splits")
-      .select(
-        [
-          "id",
-          "batch_id",
-          "split_number",
-          "status",
-          "performed_date",
-          "completed_at",
-          "completed_by_member_id",
-          "duty_assignment_id",
-          "maintenance_plate_count",
-          "flow_plate_count",
-          "actual_plate_count",
-          "created_at",
-        ].join(", ")
-      )
-      .eq("status", "open")
-      .order("split_number", { ascending: true })
-      .returns<SplitRow[]>();
-
-    if (splitsError) {
-      console.error("Could not load open passages:", splitsError);
-      setSplits([]);
-      return;
-    }
-
-    const rows = splitRows ?? [];
-
-    const cards = await Promise.all(
-      rows.map(async (row) => {
-        const [summary, myRegistration, registrations] = await Promise.all([
-          loadSplitSummary(row.id),
-          member ? loadMyRegistration(row.id, member.id) : Promise.resolve(null),
-          loadSplitRegistrations(row.id),
-        ]);
-
-        return {
-          ...row,
-          summary,
-          myRegistration,
-          registrations,
-        } satisfies SplitCardData;
-      })
-    );
-
-    setSplits(cards);
-  }
-
-  async function loadSplitSummary(splitId: string): Promise<SplitSummary> {
-    const { data, error } = await supabase.rpc("get_split_summary", {
-      p_split_id: splitId,
-    });
-
-    if (error) {
-      console.error(`Could not load summary for split ${splitId}:`, error);
-      return {
-        user_plates: 0,
-        maintenance: 1,
-        flow: 0,
-        total: 1,
-      };
-    }
-
-    const row = Array.isArray(data) ? data[0] : data;
+  function normalizeDutyRow(row: DutyAssignmentWithMember): DutyCardData {
+    const member = Array.isArray(row.members) ? row.members[0] : row.members;
 
     return {
-      user_plates: Number(row?.user_plates ?? 0),
-      maintenance: Number(row?.maintenance ?? 1),
-      flow: Number(row?.flow ?? 0),
-      total: Number(row?.total ?? 1),
+      duty_date: row.duty_date,
+      member_name: member?.full_name ?? null,
+      volume_ml: row.volume_ml ?? null,
+      split_assignee_id: row.split_assignee_id ?? null,
+      split_completed: Boolean(row.split_completed),
     };
   }
 
-  async function loadMyRegistration(splitId: string, memberId: string): Promise<number | null> {
-    const { data, error } = await supabase
-      .from("split_registrations")
-      .select("plates_count")
-      .eq("split_id", splitId)
-      .eq("member_id", memberId)
-      .maybeSingle();
+  async function loadHomeData() {
+    setAuthLoading(true);
+    setDutiesLoading(true);
+    setRegistrationsLoading(true);
 
-    if (error) {
-      console.error(`Could not load registration for split ${splitId}:`, error);
-      return null;
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error("Failed to get authenticated user:", userError);
+        setIsAuthenticated(false);
+        setTodayDuty(null);
+        setTomorrowDuty(null);
+        setMySplitRegistrations([]);
+        setAuthLoading(false);
+        setDutiesLoading(false);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      if (!user?.email) {
+        setIsAuthenticated(false);
+        setTodayDuty(null);
+        setTomorrowDuty(null);
+        setMySplitRegistrations([]);
+        setAuthLoading(false);
+        setDutiesLoading(false);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setAuthLoading(false);
+
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+
+      const todayStr = today.toISOString().slice(0, 10);
+      const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+      const memberPromise = supabase
+        .from("members")
+        .select("id")
+        .eq("email", user.email)
+        .maybeSingle();
+
+      const dutiesPromise = supabase
+        .from("duty_assignments")
+        .select(`
+          duty_date,
+          volume_ml,
+          split_assignee_id,
+          split_completed,
+          members:members!duty_assignments_member_id_fkey (
+              full_name
+            )
+        `)
+        .in("duty_date", [todayStr, tomorrowStr]);
+
+      const [
+        { data: memberData, error: memberError },
+        { data: dutiesData, error: dutiesError },
+      ] = await Promise.all([memberPromise, dutiesPromise]);
+
+      if (dutiesError) {
+        console.error("Failed to load duties:", dutiesError);
+        setTodayDuty(null);
+        setTomorrowDuty(null);
+      } else {
+        const duties = (dutiesData ?? []) as DutyAssignmentWithMember[];
+
+        const todayRow = duties.find((row) => row.duty_date === todayStr) ?? null;
+        const tomorrowRow = duties.find((row) => row.duty_date === tomorrowStr) ?? null;
+
+        setTodayDuty(todayRow ? normalizeDutyRow(todayRow) : null);
+        setTomorrowDuty(tomorrowRow ? normalizeDutyRow(tomorrowRow) : null);
+      }
+
+      setDutiesLoading(false);
+
+      if (memberError) {
+        console.error("Failed to load current member:", memberError);
+        setMySplitRegistrations([]);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      if (!memberData?.id) {
+        setMySplitRegistrations([]);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      const { data: registrationData, error: registrationError } = await supabase
+        .from("split_registrations")
+        .select(`
+          split_id,
+          plates_count,
+          splits!inner (
+            id,
+            split_number,
+            status
+          )
+        `)
+        .eq("member_id", memberData.id)
+        .neq("splits.status", "completed")
+        .order("split_number", { ascending: true, foreignTable: "splits" })
+        .limit(5);
+
+      if (registrationError) {
+        console.error("Failed to load split registrations:", registrationError);
+        setMySplitRegistrations([]);
+        setRegistrationsLoading(false);
+        return;
+      }
+
+      const parsed: SplitRegistrationCardData[] = (registrationData ?? [])
+        .map((row: any) => {
+          const split = Array.isArray(row.splits) ? row.splits[0] : row.splits;
+
+          if (!split?.id || split?.split_number == null) return null;
+
+          return {
+            split_id: split.id,
+            split_number: split.split_number,
+            plates_count: row.plates_count ?? 0,
+          };
+        })
+        .filter(Boolean) as SplitRegistrationCardData[];
+
+      setMySplitRegistrations(parsed);
+      setRegistrationsLoading(false);
+    } catch (error) {
+      console.error("Failed to load home data:", error);
+      setIsAuthenticated(false);
+      setTodayDuty(null);
+      setTomorrowDuty(null);
+      setMySplitRegistrations([]);
+      setAuthLoading(false);
+      setDutiesLoading(false);
+      setRegistrationsLoading(false);
     }
-
-    return data?.plates_count ?? null;
   }
 
-  async function loadSplitRegistrations(splitId: string): Promise<SplitRegistrationItem[]> {
-    const { data, error } = await supabase
-      .from("split_registrations")
-      .select("member_id, plates_count, members(full_name)")
-      .eq("split_id", splitId)
-      .order("plates_count", { ascending: false })
-      .returns<SplitRegistrationRow[]>();
+  async function handleLogin() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: "https://ipsc-dvirlab.vercel.app/calendar",
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    });
 
     if (error) {
-      console.error(`Could not load registrations for split ${splitId}:`, error);
-      return [];
+      console.error("Login failed:", error);
     }
+  }
 
-    return (data ?? []).map((row) => ({
+  function handleOpenCalendar() {
+    router.push("/calendar");
+  }
+
+  async function handleOpenTodaysSplit(e: React.MouseEvent<HTMLButtonElement>) {
+  e.stopPropagation();
+
+  if (!todayDuty?.split_assignee_id) return;
+
+  setTodaySplitModalOpen(true);
+  setTodaySplitModalLoading(true);
+
+  const { data, error } = await supabase
+    .from("split_registrations")
+    .select("member_id, plates_count, members(full_name)")
+    .eq("split_id", todayDuty.split_assignee_id)
+    .order("plates_count", { ascending: false });
+
+  if (error) {
+    console.error("Failed to load today's split registrations:", error);
+    setTodaySplitRegistrations([]);
+    setTodaySplitModalLoading(false);
+    return;
+  }
+
+  const parsed: TodaySplitRegistrationItem[] = (data ?? []).map((row: any) => {
+    const member = Array.isArray(row.members) ? row.members[0] : row.members;
+
+    return {
       member_id: row.member_id,
-      member_name: row.members?.full_name ?? "Unknown member",
-      plates_count: row.plates_count,
-    }));
-  }
-
-  function openRegistrationEditor(splitId: string, currentCount: number | null) {
-    setEditingSplitId(splitId);
-    setPlatesInput(String(currentCount ?? 1));
-  }
-
-  function closeRegistrationEditor() {
-    setEditingSplitId(null);
-    setPlatesInput("1");
-  }
-
-  function openFlowEditor(splitId: string, currentFlow: number) {
-    setEditingFlowSplitId(splitId);
-    setFlowInput(String(currentFlow));
-  }
-
-  function closeFlowEditor() {
-    setEditingFlowSplitId(null);
-    setFlowInput("0");
-  }
-
-  function toggleRegistrations(splitId: string) {
-    setExpandedRegistrationsSplitId((prev) => (prev === splitId ? null : splitId));
-  }
-
-  function findSplitCard(splitId: string): SplitCardData | null {
-    return splits.find((s) => s.id === splitId) ?? null;
-  }
-
-  function findPrevSplitCard(split: SplitCardData): SplitCardData | null {
-    return (
-      splits.find(
-        (s) =>
-          s.batch_id === split.batch_id &&
-          s.split_number === split.split_number - 1
-      ) ?? null
-    );
-  }
-
-  function findNextSplitCard(split: SplitCardData): SplitCardData | null {
-    return (
-      splits.find(
-        (s) =>
-          s.batch_id === split.batch_id &&
-          s.split_number === split.split_number + 1
-      ) ?? null
-    );
-  }
-
-
-  function parsePositiveInt(value: string): number | null {
-    const n = Number(value);
-    if (!Number.isInteger(n) || n <= 0) return null;
-    return n;
-  }
-
-  function parseNonNegativeInt(value: string): number | null {
-    const n = Number(value);
-    if (!Number.isInteger(n) || n < 0) return null;
-    return n;
-  }
-
-  function previewRegistrationChange(
-    splitId: string,
-    desiredMyRegistration: number
-  ): SplitValidationResult | null {
-    const split = findSplitCard(splitId);
-    if (!split) return null;
-
-    const prevSplit = findPrevSplitCard(split);
-    const nextSplit = findNextSplitCard(split);
-
-    const currentMyRegistration = split.myRegistration ?? 0;
-    const currentUserPlates = split.summary.user_plates;
-
-    const newActual =
-      currentUserPlates - currentMyRegistration + desiredMyRegistration;
-
-    const newCounts: SplitCounts = {
-      actual: Math.max(0, newActual),
-      flow: split.summary.flow,
-      maintenance: split.summary.maintenance,
+      member_name: member?.full_name ?? "Unknown member",
+      plates_count: row.plates_count ?? 0,
     };
+  });
 
-    return validateSplitChange({
-      currentSplit: cardToSplitRecord(split),
-      newCurrentCounts: newCounts,
-      prevSplit: prevSplit ? cardToSplitRecord(prevSplit) : null,
-      nextSplit: nextSplit ? cardToSplitRecord(nextSplit) : null,
-    });
-  }
+  setTodaySplitRegistrations(parsed);
+  setTodaySplitModalLoading(false);
+}
 
-  function previewFlowChange(
-    splitId: string,
-    desiredFlowCount: number
-  ): SplitValidationResult | null {
-    const split = findSplitCard(splitId);
-    if (!split) return null;
+  if (authLoading || isAuthenticated === null) {
+    return (
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={topBar}>
+          <div style={pageTitle}>Home</div>
+        </div>
 
-    const prevSplit = findPrevSplitCard(split);
-    const nextSplit = findNextSplitCard(split);
-
-    const newCounts: SplitCounts = {
-      actual: split.summary.user_plates,
-      flow: desiredFlowCount,
-      maintenance: split.summary.maintenance,
-    };
-
-    return validateSplitChange({
-      currentSplit: cardToSplitRecord(split),
-      newCurrentCounts: newCounts,
-      prevSplit: prevSplit ? cardToSplitRecord(prevSplit) : null,
-      nextSplit: nextSplit ? cardToSplitRecord(nextSplit) : null,
-    });
-  }
-
-  async function saveRegistration(splitId: string) {
-    if (!loggedInMember) {
-      alert("You must be signed in to register plates.");
-      return;
-    }
-
-    const count = parsePositiveInt(platesInput);
-
-    if (count === null) {
-      alert("Please enter a whole number greater than 0.");
-      return;
-    }
-
-    const preview = previewRegistrationChange(splitId, count);
-
-    if (preview && !preview.allowed) {
-      alert(preview.error || "This change is not allowed.");
-      return;
-    }
-
-    if (preview?.warning) {
-      const confirmed = window.confirm(preview.warning);
-      if (!confirmed) return;
-    }
-
-    setSavingSplitId(splitId);
-
-    const { error } = await supabase.rpc("upsert_split_registration", {
-      p_split_id: splitId,
-      p_member_id: loggedInMember.id,
-      p_plates_count: count,
-    });
-
-    if (error) {
-      console.error("Could not save registration:", error);
-      alert(error.message || "Failed to save registration.");
-      setSavingSplitId(null);
-      return;
-    }
-
-    await loadOpenSplits(loggedInMember);
-    closeRegistrationEditor();
-    setSavingSplitId(null);
-  }
-
-  async function deleteRegistration(splitId: string) {
-    if (!loggedInMember) {
-      alert("You must be signed in to delete a registration.");
-      return;
-    }
-
-    const preview = previewRegistrationChange(splitId, 0);
-
-    if (preview && !preview.allowed) {
-      alert(preview.error || "This change is not allowed.");
-      return;
-    }
-
-    if (preview?.warning) {
-      const confirmed = window.confirm(preview.warning);
-      if (!confirmed) return;
-    }
-
-    setSavingSplitId(splitId);
-
-    const { error } = await supabase.rpc("delete_split_registration", {
-      p_split_id: splitId,
-      p_member_id: loggedInMember.id,
-    });
-
-    if (error) {
-      console.error("Could not delete registration:", error);
-      alert(error.message || "Failed to delete registration.");
-      setSavingSplitId(null);
-      return;
-    }
-
-    await loadOpenSplits(loggedInMember);
-    closeRegistrationEditor();
-    setSavingSplitId(null);
-  }
-
-  async function saveFlow(splitId: string) {
-    const count = parseNonNegativeInt(flowInput);
-
-    if (count === null) {
-      alert("Please enter a whole number of 0 or more.");
-      return;
-    }
-
-    const preview = previewFlowChange(splitId, count);
-
-    if (preview && !preview.allowed) {
-      alert(preview.error || "This change is not allowed.");
-      return;
-    }
-
-    if (preview?.warning) {
-      const confirmed = window.confirm(preview.warning);
-      if (!confirmed) return;
-    }
-
-    setSavingSplitId(splitId);
-
-    const { error } = await supabase.rpc("update_split_flow", {
-      p_split_id: splitId,
-      p_flow_count: count,
-    });
-
-    if (error) {
-      console.error("Could not update flow:", error);
-      alert(error.message || "Failed to update flow.");
-      setSavingSplitId(null);
-      return;
-    }
-
-    await loadOpenSplits(loggedInMember);
-    closeFlowEditor();
-    setSavingSplitId(null);
-  }
-
-  async function handleReset() {
-    if (!loggedInMember) {
-      alert("You must be signed in to reset passages.");
-      return;
-    }
-
-    const startNumber = Number(resetStartNumber);
-
-    if (!Number.isInteger(startNumber) || startNumber <= 0 || startNumber > 40) {
-      alert("Please enter a valid start passage number between 1 and 40.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Resetting passages will close the current active batch and cancel all open passages that were not completed.\n\nA new batch will be created from Passage #${startNumber} to Passage #40.\n\nAre you sure you want to continue?`
+        <div style={loginCard}>
+          <h2 style={sectionTitle}>Loading...</h2>
+        </div>
+      </div>
     );
-
-    if (!confirmed) return;
-
-    setResetting(true);
-
-    const { error } = await supabase.rpc("create_split_batch", {
-      start_number: startNumber,
-      user_id: loggedInMember.id,
-    });
-
-    if (error) {
-      console.error("Could not reset passages:", error);
-      alert("Failed to reset passages.");
-      setResetting(false);
-      return;
-    }
-
-    await loadOpenSplits(loggedInMember);
-    setResetting(false);
   }
 
-  const content = useMemo(() => {
-    if (loading) {
-      return <p>Loading open passages...</p>;
-    }
+  if (!isAuthenticated) {
+    return (
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={topBar}>
+          <div style={pageTitle}>Home</div>
+        </div>
 
-    if (splits.length === 0) {
-      return <p>No open passages found.</p>;
-    }
+        <div style={loginCard}>
+          <h2 style={sectionTitle}>Sign in</h2>
+          <p style={mutedText}>
+            Please sign in with your Google account to access the duty system.
+          </p>
 
-    return splits.map((split) => {
-      const isRegistrationEditing = editingSplitId === split.id;
-      const isFlowEditing = editingFlowSplitId === split.id;
-      const isSaving = savingSplitId === split.id;
-      const isRegistrationsExpanded = expandedRegistrationsSplitId === split.id;
+          <button onClick={handleLogin} style={loginButton}>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      const registrationPreview =
-        isRegistrationEditing && parsePositiveInt(platesInput) !== null
-          ? previewRegistrationChange(split.id, Number(platesInput))
-          : null;
+  return (
+    <div style={{ maxWidth: 980, margin: "0 auto" }}>
+      <div style={topBar}>
+        <div style={pageTitle}>Home</div>
 
-      const flowPreview =
-        isFlowEditing && parseNonNegativeInt(flowInput) !== null
-          ? previewFlowChange(split.id, Number(flowInput))
-          : null;
+        <Link href="/settings" style={gearButton} aria-label="Settings">
+          ⚙
+        </Link>
+      </div>
 
-      return (
-        <div
-          key={split.id}
-          style={{
-            border: "1px solid #d0d7de",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-            background: "#fff",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: 12,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ fontSize: 20, fontWeight: 700 }}>
-              Passage #{split.split_number}
+      <section style={{ marginTop: 16 }}>
+        <div style={splitRegistrationCard}>
+          <div style={splitRegistrationHeader}>
+            <div>
+              <h2 style={sectionTitle}>My Split Plate Registrations</h2>
             </div>
 
             <button
-              onClick={() => toggleRegistrations(split.id)}
-              style={buttonStyle(false)}
+              type="button"
+              onClick={() => router.push("/splits")}
+              style={secondaryButton}
             >
-              {isRegistrationsExpanded ? "Hide Registrations" : "View Registrations"}
+              Open Splits
             </button>
           </div>
 
-          <div style={{ marginBottom: 6 }}>User plates: {split.summary.user_plates}</div>
-          <div style={{ marginBottom: 6 }}>Maintenance: {split.summary.maintenance}</div>
-          <div style={{ marginBottom: 6 }}>Flow: {split.summary.flow}</div>
-          <div style={{ marginBottom: 12, fontWeight: 700 }}>Total: {split.summary.total}</div>
+          {registrationsLoading ? (
+            <p style={mutedText}>Loading your split registrations...</p>
+          ) : mySplitRegistrations.length === 0 ? (
+            <p style={mutedText}>You are not registered for any upcoming splits.</p>
+          ) : (
+            <div style={splitRegistrationList}>
+              {mySplitRegistrations.map((item) => (
+                <div key={item.split_id} style={splitRegistrationRow}>
+                  <div style={splitRegistrationLeft}>
+                    <span style={splitNumberBadge}>P{item.split_number}</span>
+                  </div>
 
-          <div style={{ marginBottom: 12 }}>
-            My registration:{" "}
-            <strong>
-              {split.myRegistration !== null ? `${split.myRegistration} plates` : "Not registered"}
-            </strong>
-          </div>
-
-          {isRegistrationsExpanded && (
-            <div style={registrationsBoxStyle}>
-              <div style={{ fontWeight: 700, marginBottom: 10 }}>Registrations</div>
-
-              {split.registrations.length === 0 ? (
-                <div style={{ color: "#64748b" }}>No registrations yet.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {split.registrations.map((registration) => (
-                    <div
-                      key={registration.member_id}
-                      style={registrationRowStyle}
-                    >
-                      <span>{registration.member_name}</span>
-                      <strong>{registration.plates_count} plates</strong>
-                    </div>
-                  ))}
+                  <div style={splitRegistrationRight}>
+                    {item.plates_count} {item.plates_count === 1 ? "plate" : "plates"}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button
-              onClick={() => openRegistrationEditor(split.id, split.myRegistration)}
-              disabled={!loggedInMember || isSaving}
-              style={buttonStyle(!loggedInMember || isSaving)}
-            >
-              {split.myRegistration !== null ? "Edit Registration" : "Register Plates"}
-            </button>
-
-            <button
-              onClick={() => openFlowEditor(split.id, split.flow_plate_count)}
-              disabled={isSaving}
-              style={buttonStyle(isSaving)}
-            >
-              Update Flow
-            </button>
-          </div>
-
-          {isRegistrationEditing && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: 12,
-                border: "1px solid #e5e7eb",
-                borderRadius: 10,
-                background: "#fafafa",
-                marginBottom: 12,
-              }}
-            >
-              <label
-                htmlFor={`plates-${split.id}`}
-                style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
-              >
-                Number of plates
-              </label>
-
-              <input
-                id={`plates-${split.id}`}
-                type="number"
-                min={1}
-                step={1}
-                value={platesInput}
-                onChange={(e) => setPlatesInput(e.target.value)}
-                style={inputStyle}
-              />
-
-              {registrationPreview?.error && (
-                <div style={errorBoxStyle}>{registrationPreview.error}</div>
-              )}
-
-              {!registrationPreview?.error && registrationPreview?.warning && (
-                <div style={warningBoxStyle}>{registrationPreview.warning}</div>
-              )}
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                <button
-                  onClick={() => void saveRegistration(split.id)}
-                  disabled={isSaving}
-                  style={buttonStyle(isSaving)}
-                >
-                  {isSaving ? "Saving..." : "Save"}
-                </button>
-
-                {split.myRegistration !== null && (
-                  <button
-                    onClick={() => void deleteRegistration(split.id)}
-                    disabled={isSaving}
-                    style={buttonStyle(isSaving)}
-                  >
-                    Delete Registration
-                  </button>
-                )}
-
-                <button
-                  onClick={closeRegistrationEditor}
-                  disabled={isSaving}
-                  style={buttonStyle(isSaving)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {isFlowEditing && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: 12,
-                border: "1px solid #e5e7eb",
-                borderRadius: 10,
-                background: "#fafafa",
-              }}
-            >
-              <label
-                htmlFor={`flow-${split.id}`}
-                style={{ display: "block", marginBottom: 8, fontWeight: 600 }}
-              >
-                Flow plates
-              </label>
-
-              <input
-                id={`flow-${split.id}`}
-                type="number"
-                min={0}
-                step={1}
-                value={flowInput}
-                onChange={(e) => setFlowInput(e.target.value)}
-                style={inputStyle}
-              />
-
-              {flowPreview?.error && <div style={errorBoxStyle}>{flowPreview.error}</div>}
-
-              {!flowPreview?.error && flowPreview?.warning && (
-                <div style={warningBoxStyle}>{flowPreview.warning}</div>
-              )}
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                <button
-                  onClick={() => void saveFlow(split.id)}
-                  disabled={isSaving}
-                  style={buttonStyle(isSaving)}
-                >
-                  {isSaving ? "Saving..." : "Save Flow"}
-                </button>
-
-                <button
-                  onClick={closeFlowEditor}
-                  disabled={isSaving}
-                  style={buttonStyle(isSaving)}
-                >
-                  Cancel
-                </button>
-              </div>
+              ))}
             </div>
           )}
         </div>
-      );
-    });
-  }, [
-    editingFlowSplitId,
-    editingSplitId,
-    expandedRegistrationsSplitId,
-    flowInput,
-    loading,
-    loggedInMember,
-    platesInput,
-    savingSplitId,
-    splits,
-  ]);
+      </section>
 
-  return (
-    <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
+      <section style={{ marginTop: 24 }}>
+        <h2 style={sectionTitle}>Quick Actions</h2>
+
+        <div style={quickActionsGrid}>
+          <QuickActionCard
+            href="/calendar"
+            title="Calendar"
+            subtitle="Manage daily duties"
+            icon={<CalendarIcon />}
+          />
+
+          <QuickActionCard
+            href="/splits"
+            title="Splits"
+            subtitle="Register and manage passages"
+            icon={<SplitsIcon />}
+          />
+
+          <QuickActionCard
+            href="/stats"
+            title="Stats"
+            subtitle="View lab activity summaries"
+            icon={<StatsIcon />}
+          />
+
+          <QuickActionCard
+            href="/people"
+            title="People"
+            subtitle="Manage lab members"
+            icon={<PeopleIcon />}
+          />
+        </div>
+      </section>
+
+      <section style={{ marginTop: 40 }}>
+        <div style={dutyGrid}>
+          <div
+            onClick={handleOpenCalendar}
+            style={{
+              ...dutyCard,
+              cursor: "pointer",
+            }}
+          >
+            <div style={dutyHeader}>
+              <div>
+                <h2 style={sectionTitle}>Today’s Duty</h2>
+                <p style={sectionSubtitle}>Click this card to open the calendar</p>
+              </div>
+
+              <div style={headerActionRow}>
+                <button
+  onClick={handleOpenTodaysSplit}
+  disabled={!todayDuty?.split_assignee_id}
+  style={primaryButton(!todayDuty?.split_assignee_id)}
+>
+  Open Today’s Split
+</button>
+              </div>
+            </div>
+
+            {dutiesLoading ? (
+              <p style={mutedText}>Loading today’s duty...</p>
+            ) : !todayDuty ? (
+              <p style={mutedText}>No duty assigned for today</p>
+            ) : (
+              <>
+                <div style={badgeRow}>
+                  <Badge label="Medium change completed" variant="green" />
+                  <Badge
+                    label={
+                      todayDuty.split_assignee_id
+                        ? "Split duty scheduled"
+                        : "No split today"
+                    }
+                    variant={todayDuty.split_assignee_id ? "blue" : "gray"}
+                  />
+                  {todayDuty.split_assignee_id && (
+                    <Badge
+                      label={
+                        todayDuty.split_completed
+                          ? "Split completed"
+                          : "Split pending"
+                      }
+                      variant={todayDuty.split_completed ? "green" : "amber"}
+                    />
+                  )}
+                </div>
+
+                <div style={infoGrid}>
+                  <InfoItem label="Member" value={todayDuty.member_name ?? "—"} />
+                  <InfoItem
+                    label="Volume changed"
+                    value={
+                      todayDuty.volume_ml !== null &&
+                      todayDuty.volume_ml !== undefined
+                        ? `${todayDuty.volume_ml} mL`
+                        : "—"
+                    }
+                  />
+                  <InfoItem label="Date" value={todayDuty.duty_date} />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div style={dutyCard}>
+            <div style={dutyHeader}>
+              <div>
+                <h2 style={sectionTitle}>Tomorrow’s Duty</h2>
+                <p style={sectionSubtitle}>Upcoming planned medium change</p>
+              </div>
+            </div>
+
+            {dutiesLoading ? (
+              <p style={mutedText}>Loading tomorrow’s duty...</p>
+            ) : !tomorrowDuty ? (
+              <p style={mutedText}>No duty assigned for tomorrow</p>
+            ) : (
+              <>
+                <div style={badgeRow}>
+                  <Badge label="Upcoming duty" variant="purple" />
+                  <Badge
+                    label={
+                      tomorrowDuty.split_assignee_id
+                        ? "Split duty scheduled"
+                        : "No split planned"
+                    }
+                    variant={tomorrowDuty.split_assignee_id ? "blue" : "gray"}
+                  />
+                  {tomorrowDuty.split_assignee_id && (
+                    <Badge
+                      label={
+                        tomorrowDuty.split_completed
+                          ? "Split completed"
+                          : "Split pending"
+                      }
+                      variant={tomorrowDuty.split_completed ? "green" : "amber"}
+                    />
+                  )}
+                </div>
+
+                <div style={infoGrid}>
+                  <InfoItem label="Member" value={tomorrowDuty.member_name ?? "—"} />
+                  <InfoItem label="Date" value={tomorrowDuty.duty_date} />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+      {todaySplitModalOpen && (
+  <div style={modalOverlay}>
+    <div style={modalCard}>
+      <div style={modalHeader}>
         <div>
-          <h1 style={{ margin: 0 }}>Open Passages</h1>
-          <p style={{ marginTop: 8, marginBottom: 0, color: "#555" }}>
-            Register plates for each passage and manage flow plates.
+          <h3 style={modalTitle}>Today’s Split Registrations</h3>
+          <p style={modalSubtitle}>
+            View the current registrations for today’s split.
           </p>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-          <button
-            onClick={() => void handleReset()}
-            disabled={!loggedInMember || resetting}
-            style={resetButtonStyle(!loggedInMember || resetting)}
-          >
-            {resetting ? "Resetting..." : "Reset Passages"}
-          </button>
-
-          <label htmlFor="resetStartNumber" style={{ fontWeight: 600 }}>
-            New start passage number
-          </label>
-
-          <input
-            id="resetStartNumber"
-            type="number"
-            min={1}
-            max={40}
-            step={1}
-            value={resetStartNumber}
-            onChange={(e) => setResetStartNumber(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
+        <button
+          onClick={() => setTodaySplitModalOpen(false)}
+          style={modalCloseButton}
+        >
+          Close
+        </button>
       </div>
 
-      {!loggedInMember && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 10,
-            background: "#fff8e1",
-            border: "1px solid #f0d98a",
-          }}
-        >
-          You are not mapped to a member record, so some actions are currently disabled.
+      {todaySplitModalLoading ? (
+        <p style={mutedText}>Loading registrations...</p>
+      ) : todaySplitRegistrations.length === 0 ? (
+        <div style={registrationsBoxStyle}>
+          <div style={{ color: "#64748b" }}>No registrations yet.</div>
+        </div>
+      ) : (
+        <div style={registrationsBoxStyle}>
+          <div style={{ fontWeight: 700, marginBottom: 10 }}>
+            Registrations
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {todaySplitRegistrations.map((registration) => (
+              <div
+                key={registration.member_id}
+                style={registrationRowStyle}
+              >
+                <span>{registration.member_name}</span>
+                <strong>{registration.plates_count} plates</strong>
+              </div>
+            ))}
+          </div>
         </div>
       )}
-
-      {content}
+    </div>
+  </div>
+)}
     </div>
   );
 }
 
-function buttonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: "1px solid #ccc",
-    cursor: disabled ? "not-allowed" : "pointer",
-    background: disabled ? "#eee" : "#f6f8fa",
-  };
+function QuickActionCard({
+  href,
+  title,
+  subtitle,
+  icon,
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link href={href} style={quickActionCard}>
+      <div style={quickActionIconWrap}>{icon}</div>
+      <div>
+        <div style={quickActionTitle}>{title}</div>
+        <div style={quickActionSubtitle}>{subtitle}</div>
+      </div>
+    </Link>
+  );
 }
 
-function resetButtonStyle(disabled: boolean): React.CSSProperties {
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={infoItem}>
+      <div style={infoLabel}>{label}</div>
+      <div style={infoValue}>{value}</div>
+    </div>
+  );
+}
+
+function Badge({
+  label,
+  variant,
+}: {
+  label: string;
+  variant: "green" | "blue" | "amber" | "gray" | "purple";
+}) {
+  const styles = badgeStyles[variant];
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "6px 10px",
+        borderRadius: 999,
+        fontSize: 13,
+        fontWeight: 700,
+        background: styles.background,
+        color: styles.color,
+        border: `1px solid ${styles.border}`,
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="3" stroke="#0f172a" strokeWidth="1.8" />
+      <path
+        d="M8 3v4M16 3v4M3 10h18"
+        stroke="#0f172a"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SplitsIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 5h12M6 12h12M6 19h12M9 5v14M15 5v14"
+        stroke="#0f172a"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function StatsIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 19V11M12 19V7M19 19V4"
+        stroke="#0f172a"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PeopleIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="9" cy="8" r="3" stroke="#0f172a" strokeWidth="1.8" />
+      <circle cx="17" cy="9" r="2.5" stroke="#0f172a" strokeWidth="1.8" />
+      <path
+        d="M4 19c0-2.8 2.5-4.5 5-4.5s5 1.7 5 4.5M14.5 18.5c.4-1.7 1.9-2.8 3.8-2.8 1.1 0 2.2.4 3 1.2"
+        stroke="#0f172a"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+const badgeStyles = {
+  green: {
+    background: "#dcfce7",
+    color: "#166534",
+    border: "#bbf7d0",
+  },
+  blue: {
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    border: "#bfdbfe",
+  },
+  amber: {
+    background: "#fef3c7",
+    color: "#b45309",
+    border: "#fde68a",
+  },
+  gray: {
+    background: "#e5e7eb",
+    color: "#374151",
+    border: "#d1d5db",
+  },
+  purple: {
+    background: "#ede9fe",
+    color: "#6d28d9",
+    border: "#ddd6fe",
+  },
+};
+
+const topBar: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginTop: 16,
+  marginBottom: 12,
+};
+
+const pageTitle: React.CSSProperties = {
+  fontSize: 28,
+  fontWeight: 700,
+  color: "#0f172a",
+};
+
+const gearButton: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textDecoration: "none",
+  fontSize: 20,
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+  cursor: "pointer",
+};
+
+const loginCard: React.CSSProperties = {
+  marginTop: 24,
+  padding: 24,
+  borderRadius: 18,
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  maxWidth: 480,
+};
+
+const loginButton: React.CSSProperties = {
+  marginTop: 12,
+  padding: "12px 16px",
+  borderRadius: 10,
+  border: "1px solid #cbd5e1",
+  background: "#0f172a",
+  color: "#ffffff",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const sectionTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 24,
+};
+
+const sectionSubtitle: React.CSSProperties = {
+  marginTop: 6,
+  marginBottom: 0,
+  color: "#64748b",
+  fontSize: 14,
+};
+
+const mutedText: React.CSSProperties = {
+  color: "#64748b",
+  marginTop: 10,
+};
+
+const quickActionsGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+  gap: 14,
+  marginTop: 14,
+};
+
+const quickActionCard: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  padding: 18,
+  borderRadius: 16,
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  textDecoration: "none",
+  color: "#0f172a",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+
+const quickActionIconWrap: React.CSSProperties = {
+  width: 44,
+  height: 44,
+  borderRadius: 12,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const quickActionTitle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const quickActionSubtitle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#64748b",
+  lineHeight: 1.35,
+};
+
+const dutyGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: 16,
+};
+
+const dutyCard: React.CSSProperties = {
+  padding: 18,
+  borderRadius: 18,
+  border: "1px solid #e2e8f0",
+  background: "#ffffff",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+
+const dutyHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 14,
+};
+
+const headerActionRow: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const badgeRow: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginBottom: 16,
+};
+
+const infoGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: 12,
+};
+
+const infoItem: React.CSSProperties = {
+  padding: 12,
+  borderRadius: 12,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
+const infoLabel: React.CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  marginBottom: 6,
+  fontWeight: 600,
+};
+
+const infoValue: React.CSSProperties = {
+  fontSize: 15,
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const splitRegistrationCard: React.CSSProperties = {
+  padding: 18,
+  borderRadius: 18,
+  border: "1px solid #fde68a",
+  background: "#fffbeb",
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+};
+
+const splitRegistrationHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 12,
+  marginBottom: 14,
+};
+
+const splitRegistrationList: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  marginTop: 8,
+};
+
+const splitRegistrationRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: "12px 14px",
+  borderRadius: 12,
+  background: "#ffffff",
+  border: "1px solid #fde68a",
+};
+
+const splitRegistrationLeft: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const splitRegistrationRight: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#92400e",
+};
+
+const splitNumberBadge: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 52,
+  padding: "6px 12px",
+  borderRadius: 999,
+  background: "#fef3c7",
+  color: "#92400e",
+  border: "1px solid #fcd34d",
+  fontSize: 14,
+  fontWeight: 800,
+};
+
+const secondaryButton: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #fcd34d",
+  background: "#ffffff",
+  color: "#92400e",
+  cursor: "pointer",
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+};
+
+function primaryButton(disabled: boolean): React.CSSProperties {
   return {
-    padding: "10px 16px",
-    borderRadius: 8,
-    border: "1px solid #b91c1c",
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid #cbd5e1",
+    background: disabled ? "#e5e7eb" : "#0f172a",
+    color: disabled ? "#6b7280" : "#ffffff",
     cursor: disabled ? "not-allowed" : "pointer",
-    background: disabled ? "#fca5a5" : "#dc2626",
-    color: "#ffffff",
     fontWeight: 700,
     whiteSpace: "nowrap",
   };
 }
 
-const inputStyle: React.CSSProperties = {
-  width: 140,
-  padding: 8,
-  borderRadius: 8,
-  border: "1px solid #ccc",
+const modalOverlay: React.CSSProperties = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  width: "100vw",
+  height: "100vh",
+  backgroundColor: "rgba(0,0,0,0.4)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
 };
 
-const warningBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 10,
-  borderRadius: 8,
-  background: "#fff8e1",
-  border: "1px solid #f0d98a",
-  color: "#7a5d00",
-  lineHeight: 1.4,
+const modalCard: React.CSSProperties = {
+  background: "white",
+  borderRadius: 16,
+  padding: 20,
+  width: "90%",
+  maxWidth: 500,
+  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
 };
 
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 10,
-  borderRadius: 8,
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  color: "#b91c1c",
-  lineHeight: 1.4,
+const modalHeader: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  marginBottom: 16,
 };
 
-const registrationsBoxStyle: React.CSSProperties = {
-  marginBottom: 12,
-  padding: 12,
-  border: "1px solid #e5e7eb",
-  borderRadius: 10,
-  background: "#fafafa",
+const modalTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 18,
+  fontWeight: 700,
+};
+
+const modalSubtitle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: 13,
+  color: "#64748b",
+};
+
+const modalCloseButton: React.CSSProperties = {
+  border: "none",
+  background: "#e2e8f0",
+  padding: "6px 10px",
+  borderRadius: 8,
+  cursor: "pointer",
 };
 
 const registrationRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  padding: "8px 10px",
+  padding: "8px 12px",
+  background: "#f8fafc",
   borderRadius: 8,
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
 };
