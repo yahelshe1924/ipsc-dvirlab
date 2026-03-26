@@ -1009,3 +1009,11 @@ const registrationRowStyle: React.CSSProperties = {
   background: "#f8fafc",
   borderRadius: 8,
 };
+
+const registrationsBoxStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: 12,
+  borderRadius: 12,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
