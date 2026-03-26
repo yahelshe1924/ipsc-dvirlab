@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { validateSplitChange } from "@/lib/splitRules";
-import type { SplitCounts, SplitRecord, SplitValidationResult } from "@/types";
 
 type Member = {
   id: string;
@@ -273,22 +273,6 @@ export default function SplitsPage() {
     );
   }
 
-  function cardToSplitRecord(card: SplitCardData): SplitRecord {
-    return {
-      id: card.id,
-      batch_id: card.batch_id,
-      split_number: card.split_number,
-      status: card.status,
-      performed_date: card.performed_date,
-      completed_at: card.completed_at,
-      completed_by_member_id: card.completed_by_member_id,
-      duty_assignment_id: card.duty_assignment_id,
-      maintenance_plate_count: card.summary.maintenance,
-      flow_plate_count: card.summary.flow,
-      actual_plate_count: card.summary.user_plates,
-      created_at: card.created_at,
-    };
-  }
 
   function parsePositiveInt(value: string): number | null {
     const n = Number(value);
