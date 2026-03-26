@@ -7,6 +7,28 @@ import type {
   SplitValidationResult,
 } from "@/types";
 
+/**
+ * Central split rule configuration
+ * --------------------------------
+ * BASE_CAPACITY:
+ *   Maximum plates allowed in a split under normal conditions.
+ *
+ * EXPANDED_CAPACITY:
+ *   Maximum plates allowed when the previous split carries 2 maintenance plates.
+ *
+ * EXTRA_MAINTENANCE_THRESHOLD:
+ *   From this total number of plates and above, the current split requires
+ *   an extra maintenance plate in the previous split.
+ *
+ * Examples with the current values:
+ * - 0–4 plates  -> normal maintenance
+ * - 5+ plates   -> extra maintenance required in previous split
+ * - max with expanded capacity -> 10
+ */
+export const BASE_CAPACITY = 5;
+export const EXPANDED_CAPACITY = 10;
+export const EXTRA_MAINTENANCE_THRESHOLD = 5;
+
 export function getSplitCounts(split: SplitRecord): SplitCounts {
   return {
     actual: split.actual_plate_count ?? 0,
@@ -20,16 +42,18 @@ export function calcTotal(counts: SplitCounts): number {
 }
 
 export function getRequiredPrevMaintenance(total: number): 1 | 2 {
-  return total > 6 ? 2 : 1;
+  return total >= EXTRA_MAINTENANCE_THRESHOLD ? 2 : 1;
 }
 
 export function getCapacityFromPrev(prevSplit: SplitRecord | null): 6 | 12 {
-  if (!prevSplit) return 6;
-  return prevSplit.maintenance_plate_count === 2 ? 12 : 6;
+  if (!prevSplit) return BASE_CAPACITY;
+  return prevSplit.maintenance_plate_count === 2
+    ? EXPANDED_CAPACITY
+    : BASE_CAPACITY;
 }
 
 export function getCapacityFromPrevMaintenance(prevMaintenance: number): 6 | 12 {
-  return prevMaintenance === 2 ? 12 : 6;
+  return prevMaintenance === 2 ? EXPANDED_CAPACITY : BASE_CAPACITY;
 }
 
 export function isSplitOpen(split: SplitRecord | null): boolean {
@@ -43,7 +67,8 @@ export function validateSplitChange(
 
   const newCurrentTotal = calcTotal(newCurrentCounts);
   const requiredPrevMaintenance = getRequiredPrevMaintenance(newCurrentTotal);
-  const resultingCapacity = getCapacityFromPrevMaintenance(requiredPrevMaintenance);
+  const resultingCapacity =
+    getCapacityFromPrevMaintenance(requiredPrevMaintenance);
 
   if (newCurrentTotal > resultingCapacity) {
     return {
@@ -61,8 +86,7 @@ export function validateSplitChange(
     if (!prevSplit) {
       return {
         allowed: false,
-        error:
-          "You cannot exceed 6 plates because there is no previous split to add a maintenance plate.",
+        error: `You cannot reach ${EXTRA_MAINTENANCE_THRESHOLD} plates or more because there is no previous split to add a maintenance plate.`,
         warning: null,
         newCurrentTotal,
         requiredPrevMaintenance,
@@ -74,8 +98,7 @@ export function validateSplitChange(
     if (!isSplitOpen(prevSplit)) {
       return {
         allowed: false,
-        error:
-          "You cannot exceed 6 plates because the previous split is not open for adding maintenance plates.",
+        error: `You cannot reach ${EXTRA_MAINTENANCE_THRESHOLD} plates or more because the previous split is not open for adding maintenance plates.`,
         warning: null,
         newCurrentTotal,
         requiredPrevMaintenance,
@@ -88,11 +111,10 @@ export function validateSplitChange(
     const prevTotal = calcTotal(prevCounts);
     const deltaMaintenance = 2 - prevCounts.maintenance;
 
-    if (deltaMaintenance > 0 && prevTotal + deltaMaintenance > 6) {
+    if (deltaMaintenance > 0 && prevTotal + deltaMaintenance > BASE_CAPACITY) {
       return {
         allowed: false,
-        error:
-          "This action is not allowed because adding a maintenance plate to the previous split would exceed its limit of 6 plates.",
+        error: `This action is not allowed because adding a maintenance plate to the previous split would exceed its limit of ${BASE_CAPACITY} plates.`,
         warning: null,
         newCurrentTotal,
         requiredPrevMaintenance,
@@ -109,12 +131,11 @@ export function validateSplitChange(
     nextSplit &&
     currentMaintenance === 2 &&
     newCurrentCounts.maintenance < 2 &&
-    nextTotal > 6
+    nextTotal > BASE_CAPACITY
   ) {
     return {
       allowed: false,
-      error:
-        "You cannot reduce maintenance plates because the next split already relies on expanded capacity (more than 6 plates).",
+      error: `You cannot reduce maintenance plates because the next split already relies on expanded capacity (more than ${BASE_CAPACITY} plates).`,
       warning: null,
       newCurrentTotal,
       requiredPrevMaintenance,
@@ -126,14 +147,23 @@ export function validateSplitChange(
   let warning: string | null = null;
   const prevMaintenanceNow = prevSplit?.maintenance_plate_count ?? 1;
 
-  if (newCurrentTotal > 6 && prevMaintenanceNow < 2) {
+  if (
+    newCurrentTotal >= EXTRA_MAINTENANCE_THRESHOLD &&
+    prevMaintenanceNow < 2
+  ) {
     warning =
-      "This action will add an extra maintenance plate to the previous split and increase the capacity of this split to 12 plates.";
-  } else if (newCurrentTotal > 6 && prevMaintenanceNow === 2) {
-    warning = "This split is already using expanded capacity (up to 12 plates).";
-  } else if (newCurrentTotal <= 6 && prevMaintenanceNow === 2) {
+      `This action will add an extra maintenance plate to the previous split and increase the capacity of this split to ${EXPANDED_CAPACITY} plates.`;
+  } else if (
+    newCurrentTotal >= EXTRA_MAINTENANCE_THRESHOLD &&
+    prevMaintenanceNow === 2
+  ) {
+    warning = `This split is already using expanded capacity (up to ${EXPANDED_CAPACITY} plates).`;
+  } else if (
+    newCurrentTotal < EXTRA_MAINTENANCE_THRESHOLD &&
+    prevMaintenanceNow === 2
+  ) {
     warning =
-      "Reducing the number of plates will remove the extra maintenance plate from the previous split and return capacity to 6.";
+      `Reducing the number of plates will remove the extra maintenance plate from the previous split and return capacity to ${BASE_CAPACITY}.`;
   }
 
   return {
