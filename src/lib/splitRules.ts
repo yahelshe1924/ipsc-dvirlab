@@ -40,14 +40,14 @@ export function getRequiredPrevMaintenance(total: number): 1 | 2 {
   return total >= EXTRA_MAINTENANCE_THRESHOLD ? 2 : 1;
 }
 
-export function getCapacityFromPrev(prevSplit: SplitRecord | null): 5 | 10 {
+export function getCapacityFromPrev(prevSplit: SplitRecord | null): number {
   if (!prevSplit) return BASE_CAPACITY;
   return prevSplit.maintenance_plate_count === 2
     ? EXPANDED_CAPACITY
     : BASE_CAPACITY;
 }
 
-export function getCapacityFromPrevMaintenance(prevMaintenance: number): 5 | 10 {
+export function getCapacityFromPrevMaintenance(prevMaintenance: number): number {
   return prevMaintenance === 2 ? EXPANDED_CAPACITY : BASE_CAPACITY;
 }
 

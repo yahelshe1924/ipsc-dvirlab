@@ -90,15 +90,12 @@ export interface SplitValidationInput {
   nextSplit: SplitRecord | null;
 }
 
-export interface SplitValidationResult {
+type SplitValidationResult = {
   allowed: boolean;
   error: string | null;
-
-  warning: string | null; // NEW
-
+  warning: string | null;
   newCurrentTotal: number;
   requiredPrevMaintenance: 1 | 2;
-  resultingCapacity: 6 | 12;
-
+  resultingCapacity: number
   shouldWarnAboutExtraMaintenance: boolean;
-}
+};
