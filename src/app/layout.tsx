@@ -8,6 +8,8 @@ export const metadata: Metadata = {
     "Stem cell lab management platform for duties, passages, tracking, and lab workflows",
   icons: {
     icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
   },
 };
 
@@ -18,6 +20,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+      </head>
       <body style={bodyStyle}>
         <div style={appShell}>
           <header style={headerStyle}>
