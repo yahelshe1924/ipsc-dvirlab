@@ -6,11 +6,6 @@ export const metadata: Metadata = {
   title: "iPSC-DvirLab",
   description:
     "Stem cell lab management platform for duties, passages, tracking, and lab workflows",
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({
