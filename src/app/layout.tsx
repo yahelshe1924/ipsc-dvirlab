@@ -16,8 +16,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.ico?v=1" sizes="any" />
+        <link rel="shortcut icon" href="/favicon.ico?v=1" />
       </head>
       <body style={bodyStyle}>
         <div style={appShell}>
