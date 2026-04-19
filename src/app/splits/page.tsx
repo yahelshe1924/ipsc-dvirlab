@@ -574,7 +574,7 @@ export default function SplitsPage() {
 
           <div style={infoBoxStyle}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>
-              Estimated date for receiving successes from the split
+              Estimated date for receiving plates from the split
             </div>
             <div>{formatEstimateDate(estimatedSuccessDate)}</div>
           </div>
