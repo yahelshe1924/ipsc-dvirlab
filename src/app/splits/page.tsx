@@ -523,11 +523,12 @@ export default function SplitsPage() {
       return <p>No open passages found.</p>;
     }
 
-    return splits.map((split) => {
+    return splits.map((split, index) => {
       const isRegistrationEditing = editingSplitId === split.id;
       const isFlowEditing = editingFlowSplitId === split.id;
       const isSaving = savingSplitId === split.id;
       const isRegistrationsExpanded = expandedRegistrationsSplitId === split.id;
+      const estimatedSuccessDate = getEstimatedSuccessDate(split, index);
 
       const registrationPreview =
         isRegistrationEditing && parsePositiveInt(platesInput) !== null
@@ -569,6 +570,13 @@ export default function SplitsPage() {
             >
               {isRegistrationsExpanded ? "Hide Registrations" : "View Registrations"}
             </button>
+          </div>
+
+          <div style={infoBoxStyle}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              Estimated date for receiving successes from the split
+            </div>
+            <div>{formatEstimateDate(estimatedSuccessDate)}</div>
           </div>
 
           <div style={{ marginBottom: 6 }}>User plates: {split.summary.user_plates}</div>
@@ -859,6 +867,16 @@ const warningBoxStyle: React.CSSProperties = {
   lineHeight: 1.4,
 };
 
+const infoBoxStyle: React.CSSProperties = {
+  marginBottom: 12,
+  padding: 12,
+  borderRadius: 10,
+  background: "#f8fafc",
+  border: "1px solid #dbeafe",
+  color: "#1e293b",
+  lineHeight: 1.4,
+};
+
 const errorBoxStyle: React.CSSProperties = {
   marginTop: 12,
   padding: 10,
@@ -887,3 +905,52 @@ const registrationRowStyle: React.CSSProperties = {
   background: "#ffffff",
   border: "1px solid #e5e7eb",
 };
+
+function getEstimatedSuccessDate(split: SplitRow, splitIndex: number): Date {
+  const scheduledSplitDate = split.performed_date
+    ? createStableDate(split.performed_date)
+    : getScheduledSplitDate(splitIndex);
+
+  return getNextSplitDay(scheduledSplitDate, false);
+}
+
+function getScheduledSplitDate(splitIndex: number): Date {
+  let scheduledDate = getNextSplitDay(new Date(), true);
+
+  for (let index = 0; index < splitIndex; index += 1) {
+    scheduledDate = getNextSplitDay(scheduledDate, false);
+  }
+
+  return scheduledDate;
+}
+
+function getNextSplitDay(referenceDate: Date, includeSameDay: boolean): Date {
+  const date = createStableDate(referenceDate);
+  const startOffset = includeSameDay ? 0 : 1;
+
+  for (let offset = startOffset; offset <= 7; offset += 1) {
+    const candidate = new Date(date);
+    candidate.setDate(date.getDate() + offset);
+
+    if (candidate.getDay() === 1 || candidate.getDay() === 4) {
+      return candidate;
+    }
+  }
+
+  return date;
+}
+
+function createStableDate(value: string | Date): Date {
+  const date = typeof value === "string" ? new Date(`${value}T12:00:00`) : new Date(value);
+  date.setHours(12, 0, 0, 0);
+  return date;
+}
+
+function formatEstimateDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
