@@ -25,6 +25,10 @@ type TodaySplitRegistrationItem = {
   plates_count: number;
 };
 
+type LatestCompletedSplitRow = {
+  actual_plate_count?: number | null;
+};
+
 type DutyAssignmentWithMember = {
   duty_date: string;
   volume_ml?: number | null;
@@ -39,6 +43,9 @@ export default function HomePage() {
 
   const [todayDuty, setTodayDuty] = useState<DutyCardData | null>(null);
   const [tomorrowDuty, setTomorrowDuty] = useState<DutyCardData | null>(null);
+  const [todayMediumChangePlateCount, setTodayMediumChangePlateCount] = useState<number | null>(
+    null
+  );
   const [mySplitRegistrations, setMySplitRegistrations] = useState<
     SplitRegistrationCardData[]
   >([]);
@@ -84,6 +91,7 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
         setIsAuthenticated(false);
         setTodayDuty(null);
         setTomorrowDuty(null);
+        setTodayMediumChangePlateCount(null);
         setMySplitRegistrations([]);
         setAuthLoading(false);
         setDutiesLoading(false);
@@ -95,6 +103,7 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
         setIsAuthenticated(false);
         setTodayDuty(null);
         setTomorrowDuty(null);
+        setTodayMediumChangePlateCount(null);
         setMySplitRegistrations([]);
         setAuthLoading(false);
         setDutiesLoading(false);
@@ -131,10 +140,21 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
         `)
         .in("duty_date", [todayStr, tomorrowStr]);
 
+      const latestCompletedSplitPromise = supabase
+        .from("splits")
+        .select("actual_plate_count")
+        .eq("status", "completed")
+        .not("actual_plate_count", "is", null)
+        .order("performed_date", { ascending: false })
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       const [
         { data: memberData, error: memberError },
         { data: dutiesData, error: dutiesError },
-      ] = await Promise.all([memberPromise, dutiesPromise]);
+        { data: latestCompletedSplitData, error: latestCompletedSplitError },
+      ] = await Promise.all([memberPromise, dutiesPromise, latestCompletedSplitPromise]);
 
       if (dutiesError) {
         console.error("Failed to load duties:", dutiesError);
@@ -148,6 +168,14 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
 
         setTodayDuty(todayRow ? normalizeDutyRow(todayRow) : null);
         setTomorrowDuty(tomorrowRow ? normalizeDutyRow(tomorrowRow) : null);
+      }
+
+      if (latestCompletedSplitError) {
+        console.error("Failed to load latest completed split:", latestCompletedSplitError);
+        setTodayMediumChangePlateCount(null);
+      } else {
+        const latestCompletedSplit = latestCompletedSplitData as LatestCompletedSplitRow | null;
+        setTodayMediumChangePlateCount(latestCompletedSplit?.actual_plate_count ?? null);
       }
 
       setDutiesLoading(false);
@@ -209,6 +237,7 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
       setIsAuthenticated(false);
       setTodayDuty(null);
       setTomorrowDuty(null);
+      setTodayMediumChangePlateCount(null);
       setMySplitRegistrations([]);
       setAuthLoading(false);
       setDutiesLoading(false);
@@ -443,14 +472,25 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
                 </div>
 
                 <div style={infoGrid}>
-                  <InfoItem label="Member" value={todayDuty.member_name ?? "—"} />
+                  <InfoItem label="Member" value={todayDuty.member_name ?? "--"} />
+                  <InfoItem
+                    label="Plates to change"
+                    value={
+                      todayMediumChangePlateCount !== null &&
+                      todayMediumChangePlateCount !== undefined
+                        ? `${todayMediumChangePlateCount} ${
+                            todayMediumChangePlateCount === 1 ? "plate" : "plates"
+                          }`
+                        : "--"
+                    }
+                  />
                   <InfoItem
                     label="Volume changed"
                     value={
                       todayDuty.volume_ml !== null &&
                       todayDuty.volume_ml !== undefined
                         ? `${todayDuty.volume_ml} mL`
-                        : "—"
+                        : "--"
                     }
                   />
                   <InfoItem label="Date" value={todayDuty.duty_date} />
@@ -1017,3 +1057,4 @@ const registrationsBoxStyle: React.CSSProperties = {
   background: "#f8fafc",
   border: "1px solid #e2e8f0",
 };
+
