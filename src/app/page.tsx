@@ -281,20 +281,41 @@ export default function HomePage() {
   async function handleOpenTodaysSplit(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
 
-    if (!todayDuty?.split_assignee_id || todayDuty.split_passage_number == null) return;
+    if (!todayDuty?.split_assignee_id) return;
 
     setTodaySplitModalOpen(true);
     setTodaySplitModalLoading(true);
     setTodaySplitSummary(null);
 
-    const { data: splitData, error: splitError } = await supabase
-      .from("splits")
-      .select("id, split_number")
-      .eq("split_number", todayDuty.split_passage_number)
-      .in("status", ["open", "completed"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    let splitData: { id: string; split_number: number } | null = null;
+    let splitError: any = null;
+
+    if (todayDuty.split_passage_number != null) {
+      const result = await supabase
+        .from("splits")
+        .select("id, split_number")
+        .eq("split_number", todayDuty.split_passage_number)
+        .in("status", ["open", "completed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      splitData = result.data;
+      splitError = result.error;
+    }
+
+    if (!splitData?.id && !splitError) {
+      const fallbackResult = await supabase
+        .from("splits")
+        .select("id, split_number")
+        .eq("status", "open")
+        .order("split_number", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      splitData = fallbackResult.data;
+      splitError = fallbackResult.error;
+    }
 
     if (splitError || !splitData?.id) {
       console.error("Failed to load today's split:", splitError);
