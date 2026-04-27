@@ -10,6 +10,7 @@ type DutyCardData = {
   member_name: string | null;
   volume_ml: number | null;
   split_assignee_id: string | null;
+  split_passage_number: number | null;
   split_completed: boolean;
 };
 
@@ -25,6 +26,14 @@ type TodaySplitRegistrationItem = {
   plates_count: number;
 };
 
+type TodaySplitSummary = {
+  split_number: number;
+  user_plates: number;
+  maintenance: number;
+  flow: number;
+  total: number;
+};
+
 type LatestCompletedSplitRow = {
   actual_plate_count?: number | null;
 };
@@ -33,6 +42,7 @@ type DutyAssignmentWithMember = {
   duty_date: string;
   volume_ml?: number | null;
   split_assignee_id?: string | null;
+  split_passage_number?: number | null;
   split_completed?: boolean | null;
   members?: { full_name?: string | null } | { full_name?: string | null }[] | null;
 };
@@ -49,11 +59,12 @@ export default function HomePage() {
   const [mySplitRegistrations, setMySplitRegistrations] = useState<
     SplitRegistrationCardData[]
   >([]);
-const [todaySplitModalOpen, setTodaySplitModalOpen] = useState(false);
-const [todaySplitModalLoading, setTodaySplitModalLoading] = useState(false);
-const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
-  TodaySplitRegistrationItem[]
->([]);
+  const [todaySplitModalOpen, setTodaySplitModalOpen] = useState(false);
+  const [todaySplitModalLoading, setTodaySplitModalLoading] = useState(false);
+  const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
+    TodaySplitRegistrationItem[]
+  >([]);
+  const [todaySplitSummary, setTodaySplitSummary] = useState<TodaySplitSummary | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [dutiesLoading, setDutiesLoading] = useState(true);
   const [registrationsLoading, setRegistrationsLoading] = useState(true);
@@ -71,6 +82,7 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
       member_name: member?.full_name ?? null,
       volume_ml: row.volume_ml ?? null,
       split_assignee_id: row.split_assignee_id ?? null,
+      split_passage_number: row.split_passage_number ?? null,
       split_completed: Boolean(row.split_completed),
     };
   }
@@ -133,6 +145,7 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
           duty_date,
           volume_ml,
           split_assignee_id,
+          split_passage_number,
           split_completed,
           members:members!duty_assignments_member_id_fkey (
               full_name
@@ -266,39 +279,83 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
   }
 
   async function handleOpenTodaysSplit(e: React.MouseEvent<HTMLButtonElement>) {
-  e.stopPropagation();
+    e.stopPropagation();
 
-  if (!todayDuty?.split_assignee_id) return;
+    if (!todayDuty?.split_assignee_id || todayDuty.split_passage_number == null) return;
 
-  setTodaySplitModalOpen(true);
-  setTodaySplitModalLoading(true);
+    setTodaySplitModalOpen(true);
+    setTodaySplitModalLoading(true);
+    setTodaySplitSummary(null);
 
-  const { data, error } = await supabase
-    .from("split_registrations")
-    .select("member_id, plates_count, members(full_name)")
-    .eq("split_id", todayDuty.split_assignee_id)
-    .order("plates_count", { ascending: false });
+    const { data: splitData, error: splitError } = await supabase
+      .from("splits")
+      .select("id, split_number")
+      .eq("split_number", todayDuty.split_passage_number)
+      .in("status", ["open", "completed"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error("Failed to load today's split registrations:", error);
-    setTodaySplitRegistrations([]);
+    if (splitError || !splitData?.id) {
+      console.error("Failed to load today's split:", splitError);
+      setTodaySplitRegistrations([]);
+      setTodaySplitSummary(null);
+      setTodaySplitModalLoading(false);
+      return;
+    }
+
+    const [registrationsResult, summaryResult] = await Promise.all([
+      supabase
+        .from("split_registrations")
+        .select("member_id, plates_count, members(full_name)")
+        .eq("split_id", splitData.id)
+        .order("plates_count", { ascending: false }),
+      supabase.rpc("get_split_summary", {
+        p_split_id: splitData.id,
+      }),
+    ]);
+
+    if (registrationsResult.error) {
+      console.error(
+        "Failed to load today's split registrations:",
+        registrationsResult.error
+      );
+      setTodaySplitRegistrations([]);
+    } else {
+      const parsed: TodaySplitRegistrationItem[] = (registrationsResult.data ?? []).map(
+        (row: any) => {
+          const member = Array.isArray(row.members) ? row.members[0] : row.members;
+
+          return {
+            member_id: row.member_id,
+            member_name: member?.full_name ?? "Unknown member",
+            plates_count: row.plates_count ?? 0,
+          };
+        }
+      );
+
+      setTodaySplitRegistrations(parsed);
+    }
+
+    if (summaryResult.error) {
+      console.error("Failed to load today's split summary:", summaryResult.error);
+      setTodaySplitSummary(null);
+    } else {
+      const summaryRow = Array.isArray(summaryResult.data)
+        ? summaryResult.data[0]
+        : summaryResult.data;
+
+      setTodaySplitSummary({
+        split_number: Number(splitData.split_number ?? todayDuty.split_passage_number),
+        user_plates: Number(summaryRow?.user_plates ?? 0),
+        maintenance: Number(summaryRow?.maintenance ?? 1),
+        flow: Number(summaryRow?.flow ?? 0),
+        total: Number(summaryRow?.total ?? 1),
+      });
+    }
+
     setTodaySplitModalLoading(false);
-    return;
   }
-
-  const parsed: TodaySplitRegistrationItem[] = (data ?? []).map((row: any) => {
-    const member = Array.isArray(row.members) ? row.members[0] : row.members;
-
-    return {
-      member_id: row.member_id,
-      member_name: member?.full_name ?? "Unknown member",
-      plates_count: row.plates_count ?? 0,
-    };
-  });
-
-  setTodaySplitRegistrations(parsed);
-  setTodaySplitModalLoading(false);
-}
 
   if (authLoading || isAuthenticated === null) {
     return (
@@ -565,26 +622,53 @@ const [todaySplitRegistrations, setTodaySplitRegistrations] = useState<
 
       {todaySplitModalLoading ? (
         <p style={mutedText}>Loading registrations...</p>
-      ) : todaySplitRegistrations.length === 0 ? (
-        <div style={registrationsBoxStyle}>
-          <div style={{ color: "#64748b" }}>No registrations yet.</div>
-        </div>
       ) : (
-        <div style={registrationsBoxStyle}>
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>
-            Registrations
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {todaySplitRegistrations.map((registration) => (
-              <div
-                key={registration.member_id}
-                style={registrationRowStyle}
-              >
-                <span>{registration.member_name}</span>
-                <strong>{registration.plates_count} plates</strong>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {todaySplitSummary && (
+            <div style={splitSummaryGrid}>
+              <div style={splitSummaryItem}>
+                <div style={infoLabel}>Passage</div>
+                <div style={infoValue}>P{todaySplitSummary.split_number}</div>
               </div>
-            ))}
+              <div style={splitSummaryItem}>
+                <div style={infoLabel}>User plates</div>
+                <div style={infoValue}>{todaySplitSummary.user_plates}</div>
+              </div>
+              <div style={splitSummaryItem}>
+                <div style={infoLabel}>Maintenance plates</div>
+                <div style={infoValue}>{todaySplitSummary.maintenance}</div>
+              </div>
+              <div style={splitSummaryItem}>
+                <div style={infoLabel}>Flow plates</div>
+                <div style={infoValue}>{todaySplitSummary.flow}</div>
+              </div>
+              <div style={splitSummaryItem}>
+                <div style={infoLabel}>Total plates</div>
+                <div style={infoValue}>{todaySplitSummary.total}</div>
+              </div>
+            </div>
+          )}
+
+          <div style={registrationsBoxStyle}>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>
+              Registrations
+            </div>
+
+            {todaySplitRegistrations.length === 0 ? (
+              <div style={{ color: "#64748b" }}>No registrations yet.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {todaySplitRegistrations.map((registration) => (
+                  <div
+                    key={registration.member_id}
+                    style={registrationRowStyle}
+                  >
+                    <span>{registration.member_name}</span>
+                    <strong>{registration.plates_count} plates</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -889,7 +973,20 @@ const infoGrid: React.CSSProperties = {
   gap: 12,
 };
 
+const splitSummaryGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+  gap: 10,
+};
+
 const infoItem: React.CSSProperties = {
+  padding: 12,
+  borderRadius: 12,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
+const splitSummaryItem: React.CSSProperties = {
   padding: 12,
   borderRadius: 12,
   background: "#f8fafc",
