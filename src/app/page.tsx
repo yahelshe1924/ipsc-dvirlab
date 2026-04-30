@@ -263,8 +263,10 @@ export default function HomePage() {
       provider: "google",
       options: {
         redirectTo: "https://ipsc-dvirlab.vercel.app/calendar",
+        scopes: "openid email profile https://www.googleapis.com/auth/calendar",
         queryParams: {
-          prompt: "select_account",
+          access_type: "offline",
+          prompt: "consent select_account",
         },
       },
     });
