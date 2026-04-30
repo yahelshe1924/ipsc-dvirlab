@@ -110,9 +110,18 @@ export default function CalendarPage() {
     console.log("handleSave dateKey:", dateKey);
     console.log("handleSave patch:", patch);
 
-    const old = duties[dateKey];
-    const oldMemberId = old?.member_id ?? null;
-    const newMemberId = patch.member_id ?? oldMemberId ?? null;
+    const { data: existingDuty, error: existingDutyError } = await supabase
+      .from("duty_assignments")
+      .select("member_id")
+      .eq("duty_date", dateKey)
+      .maybeSingle();
+
+    if (existingDutyError) {
+      console.error("Error loading current duty before save:", existingDutyError);
+      return;
+    }
+
+    const oldMemberId = existingDuty?.member_id ?? null;
 
     const { data, error } = await supabase
       .from("duty_assignments")
@@ -128,13 +137,19 @@ export default function CalendarPage() {
       return;
     }
 
+    const newMemberId = data?.member_id ?? null;
+
     if (oldMemberId !== newMemberId && loggedIn) {
-      await supabase.from("assignment_audit").insert({
+      const { error: auditError } = await supabase.from("assignment_audit").insert({
         duty_date: dateKey,
         old_member_id: oldMemberId,
         new_member_id: newMemberId,
         changed_by_id: loggedIn.id,
       });
+
+      if (auditError) {
+        console.error("Error writing assignment audit:", auditError);
+      }
     }
 
     await loadDuties(year, month);
