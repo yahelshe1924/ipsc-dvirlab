@@ -20,7 +20,6 @@ export default function CalendarPage() {
   const [loggedIn, setLoggedIn] = useState<Member | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [didLogProviderRefreshToken, setDidLogProviderRefreshToken] = useState(false);
 
   useEffect(() => {
     supabase
@@ -49,28 +48,6 @@ export default function CalendarPage() {
       }
     });
   }, [supabase]);
-
-  useEffect(() => {
-    if (didLogProviderRefreshToken) {
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error("Failed to get session for Google token logging:", error);
-        return;
-      }
-
-      const providerRefreshToken = data.session?.provider_refresh_token;
-      if (!providerRefreshToken) {
-        return;
-      }
-
-      console.log("Google provider_refresh_token:", providerRefreshToken);
-      console.log("Google provider_token:", data.session?.provider_token ?? null);
-      setDidLogProviderRefreshToken(true);
-    });
-  }, [didLogProviderRefreshToken, supabase]);
 
   const loadDuties = useCallback(
     async (y: number, m: number) => {
