@@ -58,7 +58,7 @@ export function isSplitOpen(split: SplitRecord | null): boolean {
 export function validateSplitChange(
   input: SplitValidationInput
 ): SplitValidationResult {
-  const { currentSplit, newCurrentCounts, prevSplit, nextSplit } = input;
+  const { currentSplit, newCurrentCounts, prevSplit, prevPrevSplit, nextSplit } = input;
 
   const newCurrentTotal = calcTotal(newCurrentCounts);
   const requiredPrevMaintenance = getRequiredPrevMaintenance(newCurrentTotal);
@@ -105,11 +105,12 @@ export function validateSplitChange(
     const prevCounts = getSplitCounts(prevSplit);
     const prevTotal = calcTotal(prevCounts);
     const deltaMaintenance = 2 - prevCounts.maintenance;
+    const prevCapacity = getCapacityFromPrev(prevPrevSplit);
 
-    if (deltaMaintenance > 0 && prevTotal + deltaMaintenance > BASE_CAPACITY) {
+    if (deltaMaintenance > 0 && prevTotal + deltaMaintenance > prevCapacity) {
       return {
         allowed: false,
-        error: `This action is not allowed because adding a maintenance plate to the previous split would exceed its limit of ${BASE_CAPACITY} plates.`,
+        error: `This action is not allowed because adding a maintenance plate to the previous split would exceed its limit of ${prevCapacity} plates.`,
         warning: null,
         newCurrentTotal,
         requiredPrevMaintenance,

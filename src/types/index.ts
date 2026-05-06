@@ -87,6 +87,7 @@ export interface SplitValidationInput {
   currentSplit: SplitRecord;
   newCurrentCounts: SplitCounts;
   prevSplit: SplitRecord | null;
+  prevPrevSplit: SplitRecord | null;
   nextSplit: SplitRecord | null;
 }
 

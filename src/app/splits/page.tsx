@@ -263,6 +263,11 @@ export default function SplitsPage() {
     );
   }
 
+  function findPrevPrevSplitCard(split: SplitCardData): SplitCardData | null {
+    const prevSplit = findPrevSplitCard(split);
+    return prevSplit ? findPrevSplitCard(prevSplit) : null;
+  }
+
   function findNextSplitCard(split: SplitCardData): SplitCardData | null {
     return (
       splits.find(
@@ -310,6 +315,7 @@ export default function SplitsPage() {
     if (!split) return null;
 
     const prevSplit = findPrevSplitCard(split);
+    const prevPrevSplit = findPrevPrevSplitCard(split);
     const nextSplit = findNextSplitCard(split);
 
     const currentMyRegistration = split.myRegistration ?? 0;
@@ -328,6 +334,7 @@ export default function SplitsPage() {
       currentSplit: cardToSplitRecord(split),
       newCurrentCounts: newCounts,
       prevSplit: prevSplit ? cardToSplitRecord(prevSplit) : null,
+      prevPrevSplit: prevPrevSplit ? cardToSplitRecord(prevPrevSplit) : null,
       nextSplit: nextSplit ? cardToSplitRecord(nextSplit) : null,
     });
   }
@@ -340,6 +347,7 @@ export default function SplitsPage() {
     if (!split) return null;
 
     const prevSplit = findPrevSplitCard(split);
+    const prevPrevSplit = findPrevPrevSplitCard(split);
     const nextSplit = findNextSplitCard(split);
 
     const newCounts: SplitCounts = {
@@ -352,6 +360,7 @@ export default function SplitsPage() {
       currentSplit: cardToSplitRecord(split),
       newCurrentCounts: newCounts,
       prevSplit: prevSplit ? cardToSplitRecord(prevSplit) : null,
+      prevPrevSplit: prevPrevSplit ? cardToSplitRecord(prevPrevSplit) : null,
       nextSplit: nextSplit ? cardToSplitRecord(nextSplit) : null,
     });
   }
