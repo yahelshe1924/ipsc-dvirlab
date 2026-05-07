@@ -410,6 +410,15 @@ export default function HomePage() {
           <button onClick={handleLogin} style={loginButton}>
             Sign in with Google
           </button>
+
+          <div style={publicLinks}>
+            <Link href="/privacy-policy" style={publicLink}>
+              Privacy Policy
+            </Link>
+            <Link href="/terms-of-service" style={publicLink}>
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -891,6 +900,19 @@ const loginButton: React.CSSProperties = {
   background: "#0f172a",
   color: "#ffffff",
   cursor: "pointer",
+  fontWeight: 700,
+};
+
+const publicLinks: React.CSSProperties = {
+  display: "flex",
+  gap: 14,
+  flexWrap: "wrap",
+  marginTop: 18,
+};
+
+const publicLink: React.CSSProperties = {
+  color: "#0e7490",
+  fontSize: 14,
   fontWeight: 700,
 };
 

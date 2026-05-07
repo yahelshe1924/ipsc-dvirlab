@@ -30,6 +30,7 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths
   if (
+    pathname === "/" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/privacy-policy") ||
     pathname.startsWith("/privacy") ||
