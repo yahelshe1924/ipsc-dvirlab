@@ -1,29 +1,21 @@
 /**
  * supabase/functions/assignment-notify/index.ts
- * ------------------------------------------------
  *
- * Behavior:
- * - Email notifications respect each user's email preferences
- * - Calendar events are created only if the assignee enabled calendar sync
- * - Self-assignments can send email only if self-assignment emails are enabled
- * - All Google Calendar events are created in a secondary calendar
- * - No reminders are set on the organizer side
- * - Extensive logs included for debugging
+ * Sends email and calendar notifications after an assignment_audit insert.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = "V5-EMAIL-PREFERENCES";
+const VERSION = "V6-REMOVAL-EMAIL-DEFAULTS";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL")!;
 const DUTY_CALENDAR_ID = Deno.env.get("DUTY_CALENDAR_ID")!;
+
 console.log(`[${VERSION}] DUTY_CALENDAR_ID=`, DUTY_CALENDAR_ID);
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
-
-/* ───────────────── OAuth token helper ───────────────── */
 
 async function getAccessToken(
   clientId: string,
@@ -44,10 +36,14 @@ async function getAccessToken(
   });
 
   const json = await res.json();
+
+  if (!res.ok || !json.access_token) {
+    console.error(`[${VERSION}] OAuth token request failed`, json);
+    throw new Error("Failed to obtain Google OAuth access token");
+  }
+
   return json.access_token;
 }
-
-/* ───────────────── Gmail sender ───────────────── */
 
 async function sendEmail(
   to: string,
@@ -55,7 +51,7 @@ async function sendEmail(
   body: string,
   accessToken: string
 ) {
-  console.log(`[${VERSION}] Sending email → ${to}`);
+  console.log(`[${VERSION}] Sending email to ${to}`);
 
   const message = [
     `From: iPSC Lab <${FROM_EMAIL}>`,
@@ -71,7 +67,7 @@ async function sendEmail(
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 
-  await fetch(
+  const res = await fetch(
     "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
     {
       method: "POST",
@@ -82,9 +78,13 @@ async function sendEmail(
       body: JSON.stringify({ raw: encoded }),
     }
   );
-}
 
-/* ───────────────── Google Calendar helpers ───────────────── */
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`[${VERSION}] Gmail send failed`, text);
+    throw new Error(`Failed to send email to ${to}`);
+  }
+}
 
 async function createCalendarEvent(
   attendeeEmail: string,
@@ -127,10 +127,7 @@ async function createCalendarEvent(
   return data.id ?? null;
 }
 
-async function cancelCalendarEvent(
-  eventId: string,
-  accessToken: string
-) {
+async function cancelCalendarEvent(eventId: string, accessToken: string) {
   console.log(
     `[${VERSION}] Cancelling calendar event ${eventId} from ${DUTY_CALENDAR_ID}`
   );
@@ -149,163 +146,162 @@ async function cancelCalendarEvent(
   }
 }
 
-/* ───────────────── Main handler ───────────────── */
-
 Deno.serve(async (req) => {
-  console.log(`[${VERSION}] Function triggered`);
+  try {
+    console.log(`[${VERSION}] Function triggered`);
 
-  const payload = await req.json();
-  const record = payload.record;
+    const payload = await req.json();
+    const record = payload.record;
 
-  console.log(`[${VERSION}] Webhook payload`, record);
+    console.log(`[${VERSION}] Webhook payload`, record);
 
-  const {
-    duty_date,
-    old_member_id,
-    new_member_id,
-    changed_by_id,
-  } = record;
+    const {
+      duty_date,
+      old_member_id,
+      new_member_id,
+      changed_by_id,
+    } = record;
 
-  console.log(`[${VERSION}] IDs`, {
-    old_member_id,
-    new_member_id,
-    changed_by_id,
-  });
+    console.log(`[${VERSION}] IDs`, {
+      old_member_id,
+      new_member_id,
+      changed_by_id,
+    });
 
-  /* ── Fetch members ── */
+    const ids = [old_member_id, new_member_id, changed_by_id].filter(Boolean);
 
-  const ids = [old_member_id, new_member_id, changed_by_id].filter(Boolean);
+    const { data: members, error: membersError } = await supabase
+      .from("members")
+      .select("*")
+      .in("id", ids);
 
-  const { data: members } = await supabase
-    .from("members")
-    .select("*")
-    .in("id", ids);
+    if (membersError) {
+      console.error(`[${VERSION}] Failed to fetch members`, membersError);
+      throw new Error("Failed to fetch notification members");
+    }
 
-  const byId = Object.fromEntries(
-    (members ?? []).map((m) => [m.id, m])
-  );
+    const byId = Object.fromEntries((members ?? []).map((m) => [m.id, m]));
+    const oldMember = old_member_id ? byId[old_member_id] : null;
+    const newMember = new_member_id ? byId[new_member_id] : null;
+    const changer = changed_by_id ? byId[changed_by_id] : null;
+    const changerName = changer?.full_name ?? "A lab member";
 
-  const oldMember = old_member_id ? byId[old_member_id] : null;
-  const newMember = new_member_id ? byId[new_member_id] : null;
-  const changer = changed_by_id ? byId[changed_by_id] : null;
+    console.log(`[${VERSION}] Members resolved`, {
+      old: oldMember?.full_name,
+      new: newMember?.full_name,
+      changer: changerName,
+    });
 
-  const changerName = changer?.full_name ?? "A lab member";
+    const { data: assignment } = await supabase
+      .from("duty_assignments")
+      .select("gcal_event_id")
+      .eq("duty_date", duty_date)
+      .single();
 
-  console.log(`[${VERSION}] Members resolved`, {
-    old: oldMember?.full_name,
-    new: newMember?.full_name,
-    changer: changerName,
-  });
+    let gmailToken: string | null = null;
+    let gcalToken: string | null = null;
 
-  /* ── Fetch assignment row ── */
+    async function getGmailToken() {
+      gmailToken ??= await getAccessToken(
+        Deno.env.get("GMAIL_CLIENT_ID")!,
+        Deno.env.get("GMAIL_CLIENT_SECRET")!,
+        Deno.env.get("GMAIL_REFRESH_TOKEN")!
+      );
+      return gmailToken;
+    }
 
-  const { data: assignment } = await supabase
-    .from("duty_assignments")
-    .select("gcal_event_id")
-    .eq("duty_date", duty_date)
-    .single();
+    async function getGcalToken() {
+      gcalToken ??= await getAccessToken(
+        Deno.env.get("GOOGLE_CALENDAR_CLIENT_ID")!,
+        Deno.env.get("GOOGLE_CALENDAR_CLIENT_SECRET")!,
+        Deno.env.get("GOOGLE_CALENDAR_REFRESH_TOKEN")!
+      );
+      return gcalToken;
+    }
 
-  /* ── OAuth tokens ── */
+    if (oldMember) {
+      const shouldSendRemovalEmail =
+        old_member_id === changed_by_id
+          ? oldMember.email_on_self_assignment === true &&
+            oldMember.email_on_removal !== false
+          : oldMember.email_on_removal !== false;
 
-  const gmailToken = await getAccessToken(
-    Deno.env.get("GMAIL_CLIENT_ID")!,
-    Deno.env.get("GMAIL_CLIENT_SECRET")!,
-    Deno.env.get("GMAIL_REFRESH_TOKEN")!
-  );
-
-  const gcalToken = await getAccessToken(
-    Deno.env.get("GOOGLE_CALENDAR_CLIENT_ID")!,
-    Deno.env.get("GOOGLE_CALENDAR_CLIENT_SECRET")!,
-    Deno.env.get("GOOGLE_CALENDAR_REFRESH_TOKEN")!
-  );
-
-  /* ───────────────────────────── */
-  /* OLD ASSIGNEE REMOVAL         */
-  /* ───────────────────────────── */
-
-  if (oldMember) {
-    const shouldSendRemovalEmail =
-      old_member_id === changed_by_id
-        ? oldMember.email_on_self_assignment === true &&
-          oldMember.email_on_removal === true
-        : oldMember.email_on_removal === true;
-
-    if (!shouldSendRemovalEmail) {
-      console.log(`[${VERSION}] Skipping removal email (user preference)`);
-    } else {
-      await sendEmail(
-        oldMember.email,
-        `iPSC duty change for ${duty_date}`,
-        `Hi ${oldMember.full_name},
+      if (!shouldSendRemovalEmail) {
+        console.log(`[${VERSION}] Skipping removal email (user preference)`);
+      } else {
+        await sendEmail(
+          oldMember.email,
+          `iPSC duty change for ${duty_date}`,
+          `Hi ${oldMember.full_name},
 
 Your iPSC medium-change duty on ${duty_date} has been reassigned by ${changerName}.
 
-— iPSC-DvirLab`,
-        gmailToken
-      );
+- iPSC-DvirLab`,
+          await getGmailToken()
+        );
+      }
+
+      if (assignment?.gcal_event_id) {
+        await cancelCalendarEvent(assignment.gcal_event_id, await getGcalToken());
+      }
     }
 
-    if (assignment?.gcal_event_id) {
-      await cancelCalendarEvent(
-        assignment.gcal_event_id,
-        gcalToken
-      );
-    }
-  }
+    let newEventId: string | null = null;
 
-  /* ───────────────────────────── */
-  /* NEW ASSIGNEE                 */
-  /* ───────────────────────────── */
+    if (newMember) {
+      const shouldSendAssignmentEmail =
+        new_member_id === changed_by_id
+          ? newMember.email_on_self_assignment === true &&
+            newMember.email_on_assignment !== false
+          : newMember.email_on_assignment !== false;
 
-  let newEventId: string | null = null;
-
-  if (newMember) {
-    const shouldSendAssignmentEmail =
-      new_member_id === changed_by_id
-        ? newMember.email_on_self_assignment === true &&
-          newMember.email_on_assignment === true
-        : newMember.email_on_assignment === true;
-
-    if (!shouldSendAssignmentEmail) {
-      console.log(`[${VERSION}] Skipping assignment email (user preference)`);
-    } else {
-      await sendEmail(
-        newMember.email,
-        `You're assigned: iPSC medium change on ${duty_date}`,
-        `Hi ${newMember.full_name},
+      if (!shouldSendAssignmentEmail) {
+        console.log(`[${VERSION}] Skipping assignment email (user preference)`);
+      } else {
+        await sendEmail(
+          newMember.email,
+          `You're assigned: iPSC medium change on ${duty_date}`,
+          `Hi ${newMember.full_name},
 
 You have been assigned the iPSC medium-change duty on ${duty_date} by ${changerName}.
 
 Please log in to iPSC-DvirLab to confirm and report when done.
 
-— iPSC-DvirLab`,
-        gmailToken
-      );
+- iPSC-DvirLab`,
+          await getGmailToken()
+        );
+      }
+
+      if (newMember.medium_replacement_calendar_enabled === false) {
+        console.log(`[${VERSION}] Skipping calendar event (user preference OFF)`);
+      } else {
+        newEventId = await createCalendarEvent(
+          newMember.email,
+          duty_date,
+          await getGcalToken()
+        );
+      }
     }
 
-    if (newMember.medium_replacement_calendar_enabled === false) {
-      console.log(`[${VERSION}] Skipping calendar event (user preference OFF)`);
-      newEventId = null;
-    } else {
-      newEventId = await createCalendarEvent(
-        newMember.email,
-        duty_date,
-        gcalToken
-      );
-    }
+    await supabase
+      .from("duty_assignments")
+      .update({ gcal_event_id: newEventId })
+      .eq("duty_date", duty_date);
+
+    console.log(`[${VERSION}] Finished`);
+
+    return new Response(JSON.stringify({ ok: true, version: VERSION }), {
+      status: 200,
+    });
+  } catch (error) {
+    console.error(`[${VERSION}] Failed`, error);
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        version: VERSION,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      { status: 500 }
+    );
   }
-
-  /* ── Save calendar event id ── */
-
-  await supabase
-    .from("duty_assignments")
-    .update({ gcal_event_id: newEventId })
-    .eq("duty_date", duty_date);
-
-  console.log(`[${VERSION}] Finished`);
-
-  return new Response(
-    JSON.stringify({ ok: true, version: VERSION }),
-    { status: 200 }
-  );
 });

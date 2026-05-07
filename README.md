@@ -91,6 +91,7 @@ supabase secrets set GMAIL_REFRESH_TOKEN=xxx
 supabase secrets set GOOGLE_CALENDAR_CLIENT_ID=xxx
 supabase secrets set GOOGLE_CALENDAR_CLIENT_SECRET=xxx
 supabase secrets set GOOGLE_CALENDAR_REFRESH_TOKEN=xxx
+supabase secrets set DUTY_CALENDAR_ID=primary
 supabase secrets set FROM_EMAIL=your@gmail.com
 
 # Deploy functions

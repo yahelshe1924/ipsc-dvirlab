@@ -6,6 +6,10 @@ export interface Member {
   email: string;
   active: boolean;
   color_index: number;
+  medium_replacement_calendar_enabled: boolean;
+  email_on_assignment: boolean;
+  email_on_removal: boolean;
+  email_on_self_assignment: boolean;
   created_at: string;
 }
 

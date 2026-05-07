@@ -13,6 +13,8 @@ import type { DutyAssignment } from "@/types";
 type ArchiveRow = DutyAssignment & {
   member_name?: string | null;
   member_email?: string | null;
+  split_assignee_name?: string | null;
+  split_assignee_email?: string | null;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -104,7 +106,7 @@ export default function ArchivePage() {
       <div style={headerRow}>
         <div>
           <h1 style={title}>Archive</h1>
-          <p style={subtitle}>Read-only monthly history of assignments, reported volume, and notes.</p>
+          <p style={subtitle}>Read-only monthly history of assignments, split duties, reported volume, and notes.</p>
         </div>
 
         <div style={monthNav}>
@@ -134,6 +136,7 @@ export default function ArchivePage() {
                   <th style={th}>Day</th>
                   <th style={th}>Type</th>
                   <th style={th}>Assigned person</th>
+                  <th style={th}>Split</th>
                   <th style={th}>Volume (mL)</th>
                   <th style={th}>Notes</th>
                 </tr>
@@ -157,6 +160,23 @@ export default function ArchivePage() {
                         <span>{row.member_name}</span>
                       ) : (
                         <span style={muted}>Unassigned</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      {row?.split_assignee_id ? (
+                        <div style={splitCell}>
+                          <span>
+                            {row.split_passage_number != null
+                              ? `P${row.split_passage_number}`
+                              : "Split"}
+                            {row.split_assignee_name ? ` - ${row.split_assignee_name}` : ""}
+                          </span>
+                          {row.split_completed && (
+                            <span style={completedBadge}>Completed</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={muted}>No split</span>
                       )}
                     </td>
                     <td style={td}>
@@ -270,6 +290,23 @@ const td: React.CSSProperties = {
 
 const muted: React.CSSProperties = {
   color: "#94a3b8",
+};
+
+const splitCell: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: 6,
+};
+
+const completedBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "3px 8px",
+  borderRadius: 999,
+  background: "#dcfce7",
+  color: "#166534",
+  fontSize: 11,
+  fontWeight: 700,
 };
 
 const holidayBadge: React.CSSProperties = {

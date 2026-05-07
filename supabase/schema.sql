@@ -15,6 +15,10 @@ create table public.members (
   email       text not null unique,
   active      boolean not null default true,
   color_index integer not null default 0,   -- 0–7, stable colour slot
+  medium_replacement_calendar_enabled boolean not null default true,
+  email_on_assignment boolean not null default true,
+  email_on_removal boolean not null default true,
+  email_on_self_assignment boolean not null default false,
   created_at  timestamptz not null default now()
 );
 
@@ -102,9 +106,17 @@ select
   da.volume_ml,
   da.notes,
   da.gcal_event_id,
-  da.updated_at
+  da.updated_at,
+  da.split_assignee_id,
+  sm.full_name as split_assignee_name,
+  sm.email as split_assignee_email,
+  da.split_passage_number,
+  da.split_plate_count,
+  da.split_completed,
+  da.split_completed_at
 from public.duty_assignments da
 left join public.members m on m.id = da.member_id
+left join public.members sm on sm.id = da.split_assignee_id
 where da.duty_date >= (now() - interval '12 months')::date;
 
 -- ──────────────────────────────────────────────
