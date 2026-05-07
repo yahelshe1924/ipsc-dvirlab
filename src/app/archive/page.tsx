@@ -10,7 +10,8 @@ import { createClient } from "@/lib/supabase";
 import { getHolidayName } from "@/lib/holidays";
 import type { DutyAssignment } from "@/types";
 
-type ArchiveRow = DutyAssignment & {
+type ArchiveRow = Partial<DutyAssignment> & {
+  duty_date: string;
   member_name?: string | null;
   member_email?: string | null;
   split_assignee_name?: string | null;
@@ -21,6 +22,21 @@ type ArchiveRow = DutyAssignment & {
   performed_split_member_name?: string | null;
   performed_split_member_email?: string | null;
   performed_split_completed_at?: string | null;
+};
+
+type SplitArchiveRow = {
+  id: string;
+  split_number: number | null;
+  status: string | null;
+  performed_date: string | null;
+  completed_at: string | null;
+  completed_by_member_id: string | null;
+};
+
+type MemberRow = {
+  id: string;
+  full_name: string;
+  email: string;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -41,21 +57,81 @@ export default function ArchivePage() {
     const lastDay = new Date(y, m + 1, 0).getDate();
     const to = `${y}-${String(m + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-    const { data, error } = await supabase
+    const archivePromise = supabase
       .from("calendar_feed")
       .select("*")
       .gte("duty_date", from)
       .lte("duty_date", to)
       .order("duty_date", { ascending: true });
 
-    if (error) {
-      console.error("Error loading archive:", error);
+    const splitsPromise = supabase
+      .from("splits")
+      .select("id, split_number, status, performed_date, completed_at, completed_by_member_id")
+      .gte("performed_date", from)
+      .lte("performed_date", to)
+      .order("performed_date", { ascending: true });
+
+    const membersPromise = supabase
+      .from("members")
+      .select("id, full_name, email");
+
+    const [
+      { data: archiveData, error: archiveError },
+      { data: splitsData, error: splitsError },
+      { data: membersData, error: membersError },
+    ] = await Promise.all([archivePromise, splitsPromise, membersPromise]);
+
+    if (archiveError || splitsError || membersError) {
+      console.error("Error loading archive:", {
+        archiveError,
+        splitsError,
+        membersError,
+      });
       setRows([]);
       setLoading(false);
       return;
     }
 
-    setRows((data as ArchiveRow[]) ?? []);
+    const membersById = new Map(
+      ((membersData as MemberRow[] | null) ?? []).map((member) => [member.id, member])
+    );
+
+    const byDate = new Map(
+      ((archiveData as ArchiveRow[] | null) ?? []).map((row) => [row.duty_date, row])
+    );
+
+    const completedSplits = ((splitsData as SplitArchiveRow[] | null) ?? [])
+      .filter((split) => {
+        if (!split.performed_date) return false;
+        return split.status === "completed" || split.status === "הושלם";
+      })
+      .sort((a, b) => {
+        const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+        const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+        return aTime - bTime;
+      });
+
+    for (const split of completedSplits) {
+      if (!split.performed_date) continue;
+
+      const dateKey = split.performed_date.slice(0, 10);
+      const existing = byDate.get(dateKey) ?? { duty_date: dateKey };
+      const member = split.completed_by_member_id
+        ? membersById.get(split.completed_by_member_id)
+        : null;
+
+      byDate.set(dateKey, {
+        ...existing,
+        performed_split_id: split.id,
+        performed_split_number: split.split_number,
+        performed_split_member_id: split.completed_by_member_id,
+        performed_split_member_name: member?.full_name ?? null,
+        performed_split_member_email: member?.email ?? null,
+        performed_split_completed_at: split.completed_at,
+      });
+    }
+
+    setRows(Array.from(byDate.values()));
     setLoading(false);
   }
 
