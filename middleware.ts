@@ -33,6 +33,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/auth") ||
     pathname.startsWith("/privacy-policy") ||
     pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms-of-service") ||
+    pathname.startsWith("/terms") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth")
   ) {
