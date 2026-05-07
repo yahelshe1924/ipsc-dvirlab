@@ -29,7 +29,13 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Allow public paths
-  if (pathname.startsWith("/auth") || pathname.startsWith("/_next") || pathname.startsWith("/api/auth")) {
+  if (
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/privacy-policy") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/auth")
+  ) {
     return response;
   }
 
