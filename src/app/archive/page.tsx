@@ -15,6 +15,12 @@ type ArchiveRow = DutyAssignment & {
   member_email?: string | null;
   split_assignee_name?: string | null;
   split_assignee_email?: string | null;
+  performed_split_id?: string | null;
+  performed_split_number?: number | null;
+  performed_split_member_id?: string | null;
+  performed_split_member_name?: string | null;
+  performed_split_member_email?: string | null;
+  performed_split_completed_at?: string | null;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -163,17 +169,17 @@ export default function ArchivePage() {
                       )}
                     </td>
                     <td style={td}>
-                      {row?.split_assignee_id ? (
+                      {row?.performed_split_id ? (
                         <div style={splitCell}>
                           <span>
-                            {row.split_passage_number != null
-                              ? `P${row.split_passage_number}`
+                            {row.performed_split_number != null
+                              ? `P${row.performed_split_number}`
                               : "Split"}
-                            {row.split_assignee_name ? ` - ${row.split_assignee_name}` : ""}
+                            {row.performed_split_member_name
+                              ? ` - ${row.performed_split_member_name}`
+                              : ""}
                           </span>
-                          {row.split_completed && (
-                            <span style={completedBadge}>Completed</span>
-                          )}
+                          <span style={completedBadge}>Completed</span>
                         </div>
                       ) : (
                         <span style={muted}>No split</span>
