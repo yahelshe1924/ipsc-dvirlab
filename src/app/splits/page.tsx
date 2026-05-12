@@ -58,6 +58,7 @@ export default function SplitsPage() {
 
   const [loggedInMember, setLoggedInMember] = useState<Member | null>(null);
   const [splits, setSplits] = useState<SplitCardData[]>([]);
+  const [splitContext, setSplitContext] = useState<SplitCardData[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [savingSplitId, setSavingSplitId] = useState<string | null>(null);
@@ -132,13 +133,14 @@ export default function SplitsPage() {
           "created_at",
         ].join(", ")
       )
-      .eq("status", "open")
+      .in("status", ["open", "completed"])
       .order("split_number", { ascending: true })
       .returns<SplitRow[]>();
 
     if (splitsError) {
       console.error("Could not load open passages:", splitsError);
       setSplits([]);
+      setSplitContext([]);
       return;
     }
 
@@ -161,7 +163,8 @@ export default function SplitsPage() {
       })
     );
 
-    setSplits(cards);
+    setSplitContext(cards);
+    setSplits(cards.filter((card) => card.status === "open"));
   }
 
   async function loadSplitSummary(splitId: string): Promise<SplitSummary> {
@@ -255,7 +258,7 @@ export default function SplitsPage() {
 
   function findPrevSplitCard(split: SplitCardData): SplitCardData | null {
     return (
-      splits.find(
+      splitContext.find(
         (s) =>
           s.batch_id === split.batch_id &&
           s.split_number === split.split_number - 1
@@ -270,7 +273,7 @@ export default function SplitsPage() {
 
   function findNextSplitCard(split: SplitCardData): SplitCardData | null {
     return (
-      splits.find(
+      splitContext.find(
         (s) =>
           s.batch_id === split.batch_id &&
           s.split_number === split.split_number + 1
@@ -847,6 +850,7 @@ export default function SplitsPage() {
     loggedInMember,
     platesInput,
     savingSplitId,
+    splitContext,
     splits,
   ]);
 
