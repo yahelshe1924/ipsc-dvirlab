@@ -372,29 +372,6 @@ export default function SplitsPage() {
     });
   }
 
-  async function syncPreviousSplitMaintenance(
-    splitId: string,
-    requiredPrevMaintenance: number
-  ) {
-    const split = findSplitCard(splitId);
-    if (!split) return;
-
-    const prevSplit = findPrevSplitCard(split);
-    if (!prevSplit) return;
-
-    if (prevSplit.maintenance_plate_count === requiredPrevMaintenance) return;
-
-    const { error } = await supabase
-      .from("splits")
-      .update({ maintenance_plate_count: requiredPrevMaintenance })
-      .eq("id", prevSplit.id)
-      .eq("status", "open");
-
-    if (error) {
-      throw error;
-    }
-  }
-
   async function saveRegistration(splitId: string) {
     if (!loggedInMember) {
       alert("You must be signed in to register plates.");
@@ -435,24 +412,6 @@ export default function SplitsPage() {
       return;
     }
 
-    if (preview) {
-      try {
-        await syncPreviousSplitMaintenance(
-          splitId,
-          preview.requiredPrevMaintenance
-        );
-      } catch (syncError: any) {
-        console.error("Could not sync previous split maintenance:", syncError);
-        alert(
-          syncError?.message ||
-            "Saved the registration, but failed to update the previous split maintenance plates."
-        );
-        setSavingSplitId(null);
-        await loadOpenSplits(loggedInMember);
-        return;
-      }
-    }
-
     await loadOpenSplits(loggedInMember);
     closeRegistrationEditor();
     setSavingSplitId(null);
@@ -488,24 +447,6 @@ export default function SplitsPage() {
       alert(error.message || "Failed to delete registration.");
       setSavingSplitId(null);
       return;
-    }
-
-    if (preview) {
-      try {
-        await syncPreviousSplitMaintenance(
-          splitId,
-          preview.requiredPrevMaintenance
-        );
-      } catch (syncError: any) {
-        console.error("Could not sync previous split maintenance:", syncError);
-        alert(
-          syncError?.message ||
-            "Deleted the registration, but failed to update the previous split maintenance plates."
-        );
-        setSavingSplitId(null);
-        await loadOpenSplits(loggedInMember);
-        return;
-      }
     }
 
     await loadOpenSplits(loggedInMember);
@@ -545,24 +486,6 @@ export default function SplitsPage() {
       alert(error.message || "Failed to update flow.");
       setSavingSplitId(null);
       return;
-    }
-
-    if (preview) {
-      try {
-        await syncPreviousSplitMaintenance(
-          splitId,
-          preview.requiredPrevMaintenance
-        );
-      } catch (syncError: any) {
-        console.error("Could not sync previous split maintenance:", syncError);
-        alert(
-          syncError?.message ||
-            "Saved the flow change, but failed to update the previous split maintenance plates."
-        );
-        setSavingSplitId(null);
-        await loadOpenSplits(loggedInMember);
-        return;
-      }
     }
 
     await loadOpenSplits(loggedInMember);
