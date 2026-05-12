@@ -163,8 +163,21 @@ export default function SplitsPage() {
       })
     );
 
+    const latestCompleted =
+      cards
+        .filter((card) => card.status === "completed")
+        .sort((a, b) => {
+          const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+          const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+
+          if (aTime !== bTime) return bTime - aTime;
+          return b.split_number - a.split_number;
+        })[0] ?? null;
+
+    const openCards = cards.filter((card) => card.status === "open");
+
     setSplitContext(cards);
-    setSplits(cards.filter((card) => card.status === "open"));
+    setSplits(latestCompleted ? [latestCompleted, ...openCards] : openCards);
   }
 
   async function loadSplitSummary(splitId: string): Promise<SplitSummary> {
@@ -543,8 +556,24 @@ export default function SplitsPage() {
       const isRegistrationEditing = editingSplitId === split.id;
       const isFlowEditing = editingFlowSplitId === split.id;
       const isSaving = savingSplitId === split.id;
-      const isRegistrationsExpanded = expandedRegistrationsSplitId === split.id;
-      const estimatedSuccessDate = getEstimatedSuccessDate(split, index);
+      const isReadOnly = split.status !== "open";
+      const isRegistrationsExpanded =
+        isReadOnly || expandedRegistrationsSplitId === split.id;
+      const openIndex = splits
+        .slice(0, index)
+        .filter((item) => item.status === "open").length;
+      const estimatedSuccessDate = getEstimatedSuccessDate(split, openIndex);
+      const userPlateCount = isReadOnly
+        ? split.actual_plate_count ?? split.summary.user_plates
+        : split.summary.user_plates;
+      const maintenancePlateCount = isReadOnly
+        ? split.maintenance_plate_count
+        : split.summary.maintenance;
+      const flowPlateCount = isReadOnly
+        ? split.flow_plate_count
+        : split.summary.flow;
+      const totalPlateCount =
+        userPlateCount + maintenancePlateCount + flowPlateCount;
 
       const registrationPreview =
         isRegistrationEditing && parsePositiveInt(platesInput) !== null
@@ -560,11 +589,12 @@ export default function SplitsPage() {
         <div
           key={split.id}
           style={{
-            border: "1px solid #d0d7de",
+            border: isReadOnly ? "1px solid #cbd5e1" : "1px solid #d0d7de",
             borderRadius: 12,
             padding: 16,
             marginBottom: 16,
-            background: "#fff",
+            background: isReadOnly ? "#f1f5f9" : "#fff",
+            color: isReadOnly ? "#475569" : "inherit",
           }}
         >
           <div
@@ -578,34 +608,52 @@ export default function SplitsPage() {
           >
             <div style={{ fontSize: 20, fontWeight: 700 }}>
               Passage #{split.split_number}
+              {isReadOnly && <span style={completedStatusBadge}> Completed</span>}
             </div>
 
-            <button
-              onClick={() => toggleRegistrations(split.id)}
-              style={buttonStyle(false)}
-            >
-              {isRegistrationsExpanded ? "Hide Registrations" : "View Registrations"}
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={() => toggleRegistrations(split.id)}
+                style={buttonStyle(false)}
+              >
+                {isRegistrationsExpanded ? "Hide Registrations" : "View Registrations"}
+              </button>
+            )}
           </div>
 
-          <div style={infoBoxStyle}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>
-              Estimated date for receiving plates from the split
+          {isReadOnly ? (
+            <div style={completedInfoBoxStyle}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                Last completed split
+              </div>
+              <div>
+                {split.performed_date
+                  ? `Performed on ${formatEstimateDate(createStableDate(split.performed_date))}`
+                  : "Performed date not recorded"}
+              </div>
             </div>
-            <div>{formatEstimateDate(estimatedSuccessDate)}</div>
-          </div>
+          ) : (
+            <div style={infoBoxStyle}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                Estimated date for receiving plates from the split
+              </div>
+              <div>{formatEstimateDate(estimatedSuccessDate)}</div>
+            </div>
+          )}
 
-          <div style={{ marginBottom: 6 }}>User plates: {split.summary.user_plates}</div>
-          <div style={{ marginBottom: 6 }}>Maintenance: {split.summary.maintenance}</div>
-          <div style={{ marginBottom: 6 }}>Flow: {split.summary.flow}</div>
-          <div style={{ marginBottom: 12, fontWeight: 700 }}>Total: {split.summary.total}</div>
+          <div style={{ marginBottom: 6 }}>User plates: {userPlateCount}</div>
+          <div style={{ marginBottom: 6 }}>Maintenance: {maintenancePlateCount}</div>
+          <div style={{ marginBottom: 6 }}>Flow: {flowPlateCount}</div>
+          <div style={{ marginBottom: 12, fontWeight: 700 }}>Total: {totalPlateCount}</div>
 
-          <div style={{ marginBottom: 12 }}>
-            My registration:{" "}
-            <strong>
-              {split.myRegistration !== null ? `${split.myRegistration} plates` : "Not registered"}
-            </strong>
-          </div>
+          {!isReadOnly && (
+            <div style={{ marginBottom: 12 }}>
+              My registration:{" "}
+              <strong>
+                {split.myRegistration !== null ? `${split.myRegistration} plates` : "Not registered"}
+              </strong>
+            </div>
+          )}
 
           {isRegistrationsExpanded && (
             <div style={registrationsBoxStyle}>
@@ -629,25 +677,27 @@ export default function SplitsPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button
-              onClick={() => openRegistrationEditor(split.id, split.myRegistration)}
-              disabled={!loggedInMember || isSaving}
-              style={buttonStyle(!loggedInMember || isSaving)}
-            >
-              {split.myRegistration !== null ? "Edit Registration" : "Register Plates"}
-            </button>
+          {!isReadOnly && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <button
+                onClick={() => openRegistrationEditor(split.id, split.myRegistration)}
+                disabled={!loggedInMember || isSaving}
+                style={buttonStyle(!loggedInMember || isSaving)}
+              >
+                {split.myRegistration !== null ? "Edit Registration" : "Register Plates"}
+              </button>
 
-            <button
-              onClick={() => openFlowEditor(split.id, split.flow_plate_count)}
-              disabled={isSaving}
-              style={buttonStyle(isSaving)}
-            >
-              Update Flow
-            </button>
-          </div>
+              <button
+                onClick={() => openFlowEditor(split.id, split.flow_plate_count)}
+                disabled={isSaving}
+                style={buttonStyle(isSaving)}
+              >
+                Update Flow
+              </button>
+            </div>
+          )}
 
-          {isRegistrationEditing && (
+          {!isReadOnly && isRegistrationEditing && (
             <div
               style={{
                 marginTop: 10,
@@ -713,7 +763,7 @@ export default function SplitsPage() {
             </div>
           )}
 
-          {isFlowEditing && (
+          {!isReadOnly && isFlowEditing && (
             <div
               style={{
                 marginTop: 10,
@@ -892,6 +942,29 @@ const infoBoxStyle: React.CSSProperties = {
   border: "1px solid #dbeafe",
   color: "#1e293b",
   lineHeight: 1.4,
+};
+
+const completedInfoBoxStyle: React.CSSProperties = {
+  marginBottom: 12,
+  padding: 12,
+  borderRadius: 10,
+  background: "#e2e8f0",
+  border: "1px solid #cbd5e1",
+  color: "#334155",
+  lineHeight: 1.4,
+};
+
+const completedStatusBadge: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  marginLeft: 10,
+  padding: "4px 9px",
+  borderRadius: 999,
+  background: "#cbd5e1",
+  color: "#334155",
+  fontSize: 12,
+  fontWeight: 700,
+  verticalAlign: "middle",
 };
 
 const errorBoxStyle: React.CSSProperties = {
