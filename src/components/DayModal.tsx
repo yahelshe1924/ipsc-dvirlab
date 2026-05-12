@@ -65,6 +65,11 @@ export default function DayModal({
   const [splitPlateCount, setSplitPlateCount] = useState<string>(
     duty?.split_plate_count != null ? String(duty.split_plate_count) : ""
   );
+  const [splitMaintenancePlateCount, setSplitMaintenancePlateCount] = useState<string>(
+    duty?.split_maintenance_plate_count != null
+      ? String(duty.split_maintenance_plate_count)
+      : "1"
+  );
 
   const [saving, setSaving] = useState(false);
   const [whatsappCopied, setWhatsappCopied] = useState(false);
@@ -85,6 +90,11 @@ export default function DayModal({
     );
     setSplitPlateCount(
       duty?.split_plate_count != null ? String(duty.split_plate_count) : ""
+    );
+    setSplitMaintenancePlateCount(
+      duty?.split_maintenance_plate_count != null
+        ? String(duty.split_maintenance_plate_count)
+        : "1"
     );
   }, [duty, dateKey]);
 
@@ -132,6 +142,10 @@ export default function DayModal({
         hasSplit && splitPassageNumber !== "" ? Number(splitPassageNumber) : null,
       split_plate_count:
         hasSplit && splitPlateCount !== "" ? Number(splitPlateCount) : null,
+      split_maintenance_plate_count:
+        hasSplit && splitMaintenancePlateCount !== ""
+          ? Number(splitMaintenancePlateCount)
+          : null,
 
       split_completed: hasSplit ? duty?.split_completed ?? false : false,
       split_completed_at: hasSplit ? duty?.split_completed_at ?? null : null,
@@ -150,6 +164,26 @@ export default function DayModal({
 
   async function handleSplitComplete() {
     if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
+
+    const totalPlateCount = Number(splitPlateCount);
+    const maintenancePlateCount = Number(splitMaintenancePlateCount);
+
+    if (!Number.isInteger(totalPlateCount) || totalPlateCount <= 0) {
+      alert("Please enter a whole number greater than 0 for total plates.");
+      return;
+    }
+
+    if (!Number.isInteger(maintenancePlateCount) || maintenancePlateCount < 0) {
+      alert("Please enter a whole number of maintenance plates.");
+      return;
+    }
+
+    if (maintenancePlateCount > totalPlateCount) {
+      alert("Maintenance plates cannot be greater than the total plate count.");
+      return;
+    }
+
+    const userPlateCount = totalPlateCount - maintenancePlateCount;
 
     const dutyAssignmentId =
       (duty as (DutyAssignment & { id?: string | null }) | null)?.id ?? null;
@@ -189,7 +223,8 @@ export default function DayModal({
         p_duty_assignment_id: dutyAssignmentId,
         p_user_id: loggedInMember.id,
         p_performed_date: dateKey,
-        p_actual_plate_count: Number(splitPlateCount),
+        p_actual_plate_count: userPlateCount,
+        p_maintenance_plate_count: maintenancePlateCount,
       });
 
       if (error) {
@@ -201,7 +236,8 @@ export default function DayModal({
       await onSave(dateKey, {
         split_assignee_id: splitAssigneeId,
         split_passage_number: Number(splitPassageNumber),
-        split_plate_count: Number(splitPlateCount),
+        split_plate_count: totalPlateCount,
+        split_maintenance_plate_count: maintenancePlateCount,
         split_completed: true,
         split_completed_at: new Date().toISOString(),
       });
@@ -227,7 +263,7 @@ export default function DayModal({
 
   const splitWhatsappText =
     hasSplit && splitPassageNumber && splitPlateCount
-      ? `Passage P${splitPassageNumber} was completed for ${splitPlateCount} plates. ` +
+      ? `Passage P${splitPassageNumber} was completed for ${splitPlateCount} plates, including ${splitMaintenancePlateCount || 0} maintenance plates. ` +
         (tomorrowAssigneeName
           ? `Tomorrow's medium-change duty is ${tomorrowAssigneeName}.`
           : `Tomorrow's medium-change duty is not assigned yet.`)
@@ -356,6 +392,9 @@ export default function DayModal({
             {duty?.split_plate_count != null && (
               <p style={{ fontSize: 14, color: "#0f172a", margin: "4px 0" }}>
                 Split plates: <strong>{duty.split_plate_count}</strong>
+                {duty.split_maintenance_plate_count != null
+                  ? ` (${duty.split_maintenance_plate_count} maintenance)`
+                  : ""}
               </p>
             )}
 
@@ -504,15 +543,34 @@ export default function DayModal({
                       </div>
 
                       <div style={{ marginBottom: 12 }}>
-                        <label style={label}>Plates count (after split)</label>
+                        <label style={label}>Total plates after split</label>
                         <input
                           type="number"
-                          min="0"
+                          min="1"
+                          step="1"
                           value={splitPlateCount}
                           onChange={(e) => setSplitPlateCount(e.target.value)}
                           placeholder="e.g. 6"
                           style={{ ...input, width: 120 }}
                         />
+                      </div>
+
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={label}>Maintenance plates included</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={splitMaintenancePlateCount}
+                          onChange={(e) => setSplitMaintenancePlateCount(e.target.value)}
+                          placeholder="e.g. 1"
+                          style={{ ...input, width: 120 }}
+                        />
+                        {splitPlateCount && splitMaintenancePlateCount && (
+                          <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
+                            Next split capacity: {Number(splitMaintenancePlateCount || 0) * 5} plates
+                          </p>
+                        )}
                       </div>
 
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

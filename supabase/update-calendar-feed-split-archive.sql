@@ -18,6 +18,7 @@ select
   sm.email as split_assignee_email,
   da.split_passage_number,
   da.split_plate_count,
+  da.split_maintenance_plate_count,
   da.split_completed,
   da.split_completed_at,
   ps.id as performed_split_id,

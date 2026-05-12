@@ -36,6 +36,8 @@ type TodaySplitSummary = {
 
 type LatestCompletedSplitRow = {
   actual_plate_count?: number | null;
+  maintenance_plate_count?: number | null;
+  flow_plate_count?: number | null;
 };
 
 type DutyAssignmentWithMember = {
@@ -155,7 +157,7 @@ export default function HomePage() {
 
       const latestCompletedSplitPromise = supabase
         .from("splits")
-        .select("actual_plate_count")
+        .select("actual_plate_count, maintenance_plate_count, flow_plate_count")
         .eq("status", "completed")
         .not("actual_plate_count", "is", null)
         .order("performed_date", { ascending: false })
@@ -188,7 +190,13 @@ export default function HomePage() {
         setTodayMediumChangePlateCount(null);
       } else {
         const latestCompletedSplit = latestCompletedSplitData as LatestCompletedSplitRow | null;
-        setTodayMediumChangePlateCount(latestCompletedSplit?.actual_plate_count ?? null);
+        setTodayMediumChangePlateCount(
+          latestCompletedSplit
+            ? (latestCompletedSplit.actual_plate_count ?? 0) +
+                (latestCompletedSplit.maintenance_plate_count ?? 0) +
+                (latestCompletedSplit.flow_plate_count ?? 0)
+            : null
+        );
       }
 
       setDutiesLoading(false);

@@ -29,6 +29,7 @@ export interface DutyAssignment {
   split_assignee_id?: string | null;
   split_passage_number?: number | null;
   split_plate_count?: number | null;
+  split_maintenance_plate_count?: number | null;
   split_completed?: boolean;
   split_completed_at?: string | null;
 }
@@ -100,7 +101,7 @@ export type SplitValidationResult = {
   error: string | null;
   warning: string | null;
   newCurrentTotal: number;
-  requiredPrevMaintenance: 1 | 2;
+  requiredPrevMaintenance: number;
   resultingCapacity: number;
   shouldWarnAboutExtraMaintenance: boolean;
 };

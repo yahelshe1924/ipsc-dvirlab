@@ -135,6 +135,7 @@ export default function StatsPage() {
       "split_assignee_email",
       "split_passage_number",
       "split_plate_count",
+      "split_maintenance_plate_count",
       "split_completed",
     ];
 
@@ -157,6 +158,7 @@ export default function StatsPage() {
         splitMember?.email ?? "",
         d.split_passage_number ?? "",
         d.split_plate_count ?? "",
+        d.split_maintenance_plate_count ?? "",
         d.split_completed ? "yes" : "no",
       ].join(",");
     });

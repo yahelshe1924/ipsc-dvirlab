@@ -55,6 +55,7 @@ create table public.duty_assignments (
   volume_ml            integer,                        -- null = not yet reported
   notes                text not null default '',
   gcal_event_id        text,                           -- Google Calendar event id for current assignee
+  split_maintenance_plate_count integer,
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now()
 );
@@ -112,6 +113,7 @@ select
   sm.email as split_assignee_email,
   da.split_passage_number,
   da.split_plate_count,
+  da.split_maintenance_plate_count,
   da.split_completed,
   da.split_completed_at,
   ps.id as performed_split_id,

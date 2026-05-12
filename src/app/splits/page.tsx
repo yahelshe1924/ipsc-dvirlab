@@ -367,7 +367,7 @@ export default function SplitsPage() {
 
   async function syncPreviousSplitMaintenance(
     splitId: string,
-    requiredPrevMaintenance: 1 | 2
+    requiredPrevMaintenance: number
   ) {
     const split = findSplitCard(splitId);
     if (!split) return;

@@ -190,7 +190,12 @@ export default function Calendar({
                   )}
 
                   {duty?.split_plate_count != null && (
-                    <div style={styles.splitMeta}>{duty.split_plate_count} plates</div>
+                    <div style={styles.splitMeta}>
+                      {duty.split_plate_count} plates
+                      {duty.split_maintenance_plate_count != null
+                        ? ` (${duty.split_maintenance_plate_count} M)`
+                        : ""}
+                    </div>
                   )}
 
                   {duty?.split_completed && (
