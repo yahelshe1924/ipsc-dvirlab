@@ -282,6 +282,8 @@ export default function SplitsPage() {
   }
 
   function cardToSplitRecord(card: SplitCardData): SplitRecord {
+    const isCompleted = card.status === "completed";
+
     return {
       id: card.id,
       batch_id: card.batch_id,
@@ -291,9 +293,11 @@ export default function SplitsPage() {
       completed_at: card.completed_at,
       completed_by_member_id: card.completed_by_member_id,
       duty_assignment_id: card.duty_assignment_id,
-      maintenance_plate_count: card.summary.maintenance,
-      flow_plate_count: card.summary.flow,
-      actual_plate_count: card.summary.user_plates,
+      maintenance_plate_count: card.maintenance_plate_count,
+      flow_plate_count: isCompleted ? card.flow_plate_count : card.summary.flow,
+      actual_plate_count: isCompleted
+        ? card.actual_plate_count
+        : card.summary.user_plates,
       created_at: card.created_at,
     };
   }
