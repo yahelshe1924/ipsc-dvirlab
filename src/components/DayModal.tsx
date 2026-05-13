@@ -132,6 +132,32 @@ export default function DayModal({
   }
 
   async function handleSave() {
+    const totalPlateCount =
+      splitPlateCount !== "" ? Number(splitPlateCount) : null;
+    const maintenancePlateCount =
+      splitMaintenancePlateCount !== "" ? Number(splitMaintenancePlateCount) : null;
+
+    if (hasSplit && duty?.split_completed && totalPlateCount !== null) {
+      if (!Number.isInteger(totalPlateCount) || totalPlateCount <= 0) {
+        alert("Please enter a whole number greater than 0 for total plates.");
+        return;
+      }
+
+      if (
+        maintenancePlateCount === null ||
+        !Number.isInteger(maintenancePlateCount) ||
+        maintenancePlateCount < 0
+      ) {
+        alert("Please enter a whole number of maintenance plates.");
+        return;
+      }
+
+      if (maintenancePlateCount > totalPlateCount) {
+        alert("Maintenance plates cannot be greater than the total plate count.");
+        return;
+      }
+    }
+
     const payload: Partial<DutyAssignment> = {
       member_id: selectedMemberId || null,
       volume_ml: volumeMl !== "" ? Number(volumeMl) : null,
@@ -152,9 +178,35 @@ export default function DayModal({
     };
 
     setSaving(true);
-    await onSave(dateKey, payload);
-    setSaving(false);
-    onClose();
+    try {
+      await onSave(dateKey, payload);
+
+      if (hasSplit && duty?.split_completed && totalPlateCount !== null) {
+        const dutyAssignmentId =
+          (duty as (DutyAssignment & { id?: string | null }) | null)?.id ?? null;
+
+        if (!dutyAssignmentId) {
+          alert("Could not find the duty assignment id for this completed split.");
+          return;
+        }
+
+        const { error } = await supabase.rpc("update_completed_split_counts", {
+          p_duty_assignment_id: dutyAssignmentId,
+          p_total_plate_count: totalPlateCount,
+          p_maintenance_plate_count: maintenancePlateCount,
+        });
+
+        if (error) {
+          console.error("Error updating completed split counts:", error);
+          alert(error.message || "Failed to update the completed split counts.");
+          return;
+        }
+      }
+
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRemove() {
