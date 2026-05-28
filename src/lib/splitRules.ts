@@ -73,52 +73,23 @@ export function validateSplitChange(
     };
   }
 
-  if (prevSplit && newCurrentLoad <= getCapacityFromPrev(prevSplit)) {
+  if (!prevSplit && newCurrentLoad > BASE_CAPACITY) {
     return {
-      allowed: true,
-      error: null,
+      allowed: false,
+      error: `You cannot exceed ${BASE_CAPACITY} non-maintenance plates because there is no previous split to support more capacity.`,
       warning: null,
       newCurrentTotal,
       requiredPrevMaintenance,
-      resultingCapacity: getCapacityFromPrev(prevSplit),
+      resultingCapacity,
       shouldWarnAboutExtraMaintenance: false,
     };
   }
 
-  if (requiredPrevMaintenance > 1) {
-    if (!prevSplit) {
-      return {
-        allowed: false,
-        error: `You cannot exceed ${BASE_CAPACITY} non-maintenance plates because there is no previous split to support more capacity.`,
-        warning: null,
-        newCurrentTotal,
-        requiredPrevMaintenance,
-        resultingCapacity,
-        shouldWarnAboutExtraMaintenance: false,
-      };
-    }
-
+  if (prevSplit && newCurrentLoad > getCapacityFromPrev(prevSplit)) {
     if (!isSplitOpen(prevSplit)) {
       return {
         allowed: false,
         error: `You cannot exceed ${getCapacityFromPrev(prevSplit)} non-maintenance plates because the previous split is completed with ${prevSplit.maintenance_plate_count} maintenance plates.`,
-        warning: null,
-        newCurrentTotal,
-        requiredPrevMaintenance,
-        resultingCapacity,
-        shouldWarnAboutExtraMaintenance: false,
-      };
-    }
-
-    const prevCounts = getSplitCounts(prevSplit);
-    const prevTotal = calcTotal(prevCounts);
-    const deltaMaintenance = requiredPrevMaintenance - prevCounts.maintenance;
-    const prevCapacity = getCapacityFromPrev(prevPrevSplit);
-
-    if (deltaMaintenance > 0 && prevTotal + deltaMaintenance > prevCapacity) {
-      return {
-        allowed: false,
-        error: `This action is not allowed because adding a maintenance plate to the previous split would exceed its limit of ${prevCapacity} plates.`,
         warning: null,
         newCurrentTotal,
         requiredPrevMaintenance,
