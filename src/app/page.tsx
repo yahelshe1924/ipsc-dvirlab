@@ -224,7 +224,7 @@ export default function HomePage() {
           )
         `)
         .eq("member_id", memberData.id)
-        .neq("splits.status", "completed")
+        .eq("splits.status", "open")
         .order("split_number", { ascending: true, foreignTable: "splits" })
         .limit(5);
 
