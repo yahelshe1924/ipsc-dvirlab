@@ -53,6 +53,8 @@ type SplitCardData = SplitRow & {
   registrations: SplitRegistrationItem[];
 };
 
+const RESET_END_PASSAGE_NUMBER = 50;
+
 export default function SplitsPage() {
   const supabase = createClient();
 
@@ -468,6 +470,11 @@ export default function SplitsPage() {
   }
 
   async function saveFlow(splitId: string) {
+    if (!loggedInMember) {
+      alert("You must be signed in to update flow plates.");
+      return;
+    }
+
     const count = parseNonNegativeInt(flowInput);
 
     if (count === null) {
@@ -514,13 +521,17 @@ export default function SplitsPage() {
 
     const startNumber = Number(resetStartNumber);
 
-    if (!Number.isInteger(startNumber) || startNumber <= 0 || startNumber > 40) {
-      alert("Please enter a valid start passage number between 1 and 40.");
+    if (
+      !Number.isInteger(startNumber) ||
+      startNumber <= 0 ||
+      startNumber > RESET_END_PASSAGE_NUMBER
+    ) {
+      alert(`Please enter a valid start passage number between 1 and ${RESET_END_PASSAGE_NUMBER}.`);
       return;
     }
 
     const confirmed = window.confirm(
-      `Resetting passages will close the current active batch and cancel all open passages that were not completed.\n\nA new batch will be created from Passage #${startNumber} to Passage #40.\n\nAre you sure you want to continue?`
+      `Resetting passages will close the current active batch and cancel all open passages that were not completed.\n\nA new batch will be created from Passage #${startNumber} to Passage #${RESET_END_PASSAGE_NUMBER}.\n\nAre you sure you want to continue?`
     );
 
     if (!confirmed) return;
@@ -689,8 +700,8 @@ export default function SplitsPage() {
 
               <button
                 onClick={() => openFlowEditor(split.id, split.flow_plate_count)}
-                disabled={isSaving}
-                style={buttonStyle(isSaving)}
+                disabled={!loggedInMember || isSaving}
+                style={buttonStyle(!loggedInMember || isSaving)}
               >
                 Update Flow
               </button>
@@ -866,7 +877,7 @@ export default function SplitsPage() {
             id="resetStartNumber"
             type="number"
             min={1}
-            max={40}
+            max={RESET_END_PASSAGE_NUMBER}
             step={1}
             value={resetStartNumber}
             onChange={(e) => setResetStartNumber(e.target.value)}

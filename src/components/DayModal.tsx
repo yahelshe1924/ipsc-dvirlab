@@ -397,7 +397,7 @@ export default function DayModal({
                 marginBottom: 10,
               }}
             >
-              Past date — read only
+              Past date — medium duty is read only
             </div>
 
             {assignedMember ? (
@@ -454,6 +454,100 @@ export default function DayModal({
               <p style={{ fontSize: 14, color: "#0f172a", margin: "4px 0" }}>
                 Split completed
               </p>
+            )}
+
+            {hasSplit && !duty?.split_completed && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 12,
+                  background: "#fff",
+                  borderRadius: 10,
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: "#0e7490",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginBottom: 10,
+                  }}
+                >
+                  Late split completion
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={label}>Passage number</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={prefixBadge}>P</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={splitPassageNumber}
+                      onChange={(e) => setSplitPassageNumber(e.target.value)}
+                      placeholder="e.g. 32"
+                      style={{ ...input, width: 120 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={label}>Total plates after split</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={splitPlateCount}
+                    onChange={(e) => setSplitPlateCount(e.target.value)}
+                    placeholder="e.g. 3"
+                    style={{ ...input, width: 120 }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={label}>Maintenance plates included</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={splitMaintenancePlateCount}
+                    onChange={(e) => setSplitMaintenancePlateCount(e.target.value)}
+                    placeholder="e.g. 2"
+                    style={{ ...input, width: 120 }}
+                  />
+                  {splitPlateCount && splitMaintenancePlateCount && (
+                    <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
+                      Next split capacity: {Number(splitMaintenancePlateCount || 0) * 5} plates
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSplitComplete}
+                  disabled={saving || !splitAssigneeId || !splitPassageNumber || !splitPlateCount}
+                  style={{
+                    ...chipButton,
+                    background: "#ecfeff",
+                    borderColor: "#67e8f9",
+                    color: "#0e7490",
+                    opacity:
+                      saving || !splitAssigneeId || !splitPassageNumber || !splitPlateCount
+                        ? 0.7
+                        : 1,
+                    cursor:
+                      saving || !splitAssigneeId || !splitPassageNumber || !splitPlateCount
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  {saving ? "Saving..." : "Mark split as completed"}
+                </button>
+              </div>
             )}
 
             {duty?.volume_ml != null && (
