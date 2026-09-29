@@ -531,14 +531,14 @@ export default function SplitsPage() {
     }
 
     const confirmed = window.confirm(
-      `Resetting passages will close the current active batch and cancel all open passages that were not completed.\n\nA new batch will be created from Passage #${startNumber} to Passage #${RESET_END_PASSAGE_NUMBER}.\n\nAre you sure you want to continue?`
+      `Resetting passages will close the current active batch and cancel all open passages that were not completed.\n\nA new batch will be created from Passage #${startNumber} to Passage #${RESET_END_PASSAGE_NUMBER}. One flow plate will be added to Passage #${startNumber} and every 5 passages after it.\n\nAre you sure you want to continue?`
     );
 
     if (!confirmed) return;
 
     setResetting(true);
 
-    const { error } = await supabase.rpc("create_split_batch", {
+    const { error } = await supabase.rpc("create_split_batch_with_default_flow", {
       start_number: startNumber,
       user_id: loggedInMember.id,
     });
@@ -856,7 +856,8 @@ export default function SplitsPage() {
         <div>
           <h1 style={{ margin: 0 }}>Open Passages</h1>
           <p style={{ marginTop: 8, marginBottom: 0, color: "#555" }}>
-            Register plates for each passage and manage flow plates.
+            Register plates for each passage and manage flow plates. Resetting adds one flow
+            plate to the starting passage and every 5 passages after it; each value remains editable.
           </p>
         </div>
 
