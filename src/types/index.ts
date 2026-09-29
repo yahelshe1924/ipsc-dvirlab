@@ -10,6 +10,7 @@ export interface Member {
   email_on_assignment: boolean;
   email_on_removal: boolean;
   email_on_self_assignment: boolean;
+  flow_team: boolean;
   created_at: string;
 }
 

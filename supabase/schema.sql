@@ -19,6 +19,7 @@ create table public.members (
   email_on_assignment boolean not null default true,
   email_on_removal boolean not null default true,
   email_on_self_assignment boolean not null default false,
+  flow_team boolean not null default false,
   created_at  timestamptz not null default now()
 );
 

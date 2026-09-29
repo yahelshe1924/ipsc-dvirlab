@@ -98,6 +98,7 @@ supabase secrets set FROM_EMAIL=your@gmail.com
 supabase functions deploy assignment-notify
 supabase functions deploy daily-reminder
 supabase functions deploy monthly-alert
+supabase functions deploy flow-ready-notify
 ```
 
 ### 5 · Configure assignment-notify webhook
@@ -107,6 +108,21 @@ supabase functions deploy monthly-alert
 3. URL: `https://YOUR_PROJECT.supabase.co/functions/v1/assignment-notify`
 4. HTTP Method: POST.
 5. Add header: `Authorization: Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY`.
+
+### 5a · Configure Flow Team notifications
+
+1. Run `supabase/add-flow-team-notifications.sql` in the Supabase SQL Editor.
+2. Deploy the function: `supabase functions deploy flow-ready-notify`.
+3. Supabase Dashboard → Database → Webhooks → Create webhook.
+4. Table: `splits`, Event: `UPDATE`.
+5. URL: `https://YOUR_PROJECT.supabase.co/functions/v1/flow-ready-notify`.
+6. HTTP Method: POST.
+7. Add header: `Authorization: Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY`.
+
+The function sends one Bcc email to all active members marked `Flow Team` when
+a completed split contains at least one flow plate. It announces the expected
+ready date, three calendar days after the performed date, and records the send
+time so later split edits do not send the notification again.
 
 ### 6 · Schedule daily-reminder (10:45 AM Jerusalem)
 

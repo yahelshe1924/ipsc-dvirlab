@@ -199,6 +199,27 @@ export default function PeoplePage() {
     await loadMembers();
   }
 
+  async function toggleFlowTeam(member: EditableMember) {
+    const { error } = await supabase
+      .from("members")
+      .update({ flow_team: !member.flow_team })
+      .eq("id", member.id);
+
+    if (error) {
+      console.error("Error toggling flow team membership:", error);
+      alert(error.message || "Failed to update flow team membership.");
+      return;
+    }
+
+    setMembers((prev) =>
+      prev.map((current) =>
+        current.id === member.id
+          ? { ...current, flow_team: !current.flow_team }
+          : current
+      )
+    );
+  }
+
   if (loading) {
     return (
       <div style={page}>
@@ -214,7 +235,7 @@ export default function PeoplePage() {
         <div>
           <h1 style={title}>Lab Members</h1>
           <p style={subtitle}>
-            Manage active members, emails, and fixed display colors.
+            Manage active members, emails, fixed display colors, and the flow notification team.
           </p>
         </div>
       </div>
@@ -286,6 +307,7 @@ export default function PeoplePage() {
               <tr>
                 <th style={th}>Color</th>
                 <th style={th}>Name</th>
+                <th style={th}>Flow Team</th>
                 <th style={th}>Email</th>
                 <th style={th}>Color Index</th>
                 <th style={th}>Status</th>
@@ -329,6 +351,17 @@ export default function PeoplePage() {
                       ) : (
                         member.full_name
                       )}
+                    </td>
+
+                    <td style={td}>
+                      <label style={checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={member.flow_team === true}
+                          onChange={() => void toggleFlowTeam(member)}
+                        />
+                        <span>{member.flow_team ? "Member" : "Not selected"}</span>
+                      </label>
                     </td>
 
                     <td style={td}>
@@ -418,7 +451,7 @@ export default function PeoplePage() {
 
               {filteredMembers.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...td, color: "#94a3b8", textAlign: "center" }}>
+                  <td colSpan={7} style={{ ...td, color: "#94a3b8", textAlign: "center" }}>
                     No members found.
                   </td>
                 </tr>
@@ -623,4 +656,12 @@ const td: React.CSSProperties = {
   fontSize: 14,
   color: "#0f172a",
   verticalAlign: "middle",
+};
+
+const checkboxLabel: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
