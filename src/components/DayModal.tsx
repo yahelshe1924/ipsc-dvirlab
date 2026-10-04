@@ -52,8 +52,8 @@ export default function DayModal({
     : null;
 
   const [selectedMemberId, setSelectedMemberId] = useState<string>(duty?.member_id ?? "");
-  const [volumeMl, setVolumeMl] = useState<string>(
-    duty?.volume_ml != null ? String(duty.volume_ml) : ""
+  const [mediumChangeCompleted, setMediumChangeCompleted] = useState<boolean>(
+    duty?.volume_ml != null
   );
   const [notes, setNotes] = useState<string>(duty?.notes ?? "");
 
@@ -80,7 +80,7 @@ export default function DayModal({
 
   useEffect(() => {
     setSelectedMemberId(duty?.member_id ?? "");
-    setVolumeMl(duty?.volume_ml != null ? String(duty.volume_ml) : "");
+    setMediumChangeCompleted(duty?.volume_ml != null);
     setNotes(duty?.notes ?? "");
 
     setHasSplit(!!duty?.split_assignee_id);
@@ -160,7 +160,9 @@ export default function DayModal({
 
     const payload: Partial<DutyAssignment> = {
       member_id: selectedMemberId || null,
-      volume_ml: volumeMl !== "" ? Number(volumeMl) : null,
+      // volume_ml remains the completion marker used by reminders and stats.
+      // Medium replacement is now fixed at 12 mL, so users only report completion.
+      volume_ml: mediumChangeCompleted ? 12 : null,
       notes,
 
       split_assignee_id: hasSplit ? splitAssigneeId || null : null,
@@ -303,8 +305,8 @@ export default function DayModal({
     assignedMember?.full_name ??
     loggedInMember.full_name;
 
-  const whatsappText = volumeMl
-    ? `Today's iPSC medium change was completed by ${reporterName}. Volume changed: ${volumeMl} mL. ` +
+  const whatsappText = mediumChangeCompleted
+    ? `Today's iPSC medium change was completed by ${reporterName}. The standard 12 mL medium replacement was completed. ` +
       (tomorrowAssigneeName
         ? `Tomorrow's duty: ${tomorrowAssigneeName}.`
         : `Tomorrow's duty: no one is assigned yet.`) +
@@ -552,7 +554,7 @@ export default function DayModal({
 
             {duty?.volume_ml != null && (
               <p style={{ fontSize: 14, color: "#0f172a", margin: "4px 0" }}>
-                <strong>{duty.volume_ml} mL</strong> reported
+                <strong>Medium change completed</strong>
               </p>
             )}
 
@@ -804,21 +806,14 @@ export default function DayModal({
               )}
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={label}>Volume changed (mL)</label>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={volumeMl}
-                  onChange={(e) => setVolumeMl(e.target.value)}
-                  placeholder="e.g. 50"
-                  style={{ ...input, width: 120 }}
-                />
-                <span style={{ fontSize: 13, color: "#94a3b8" }}>mL</span>
-              </div>
-            </div>
+            <label style={{ ...completionToggle, marginBottom: 16 }}>
+              <input
+                type="checkbox"
+                checked={mediumChangeCompleted}
+                onChange={(e) => setMediumChangeCompleted(e.target.checked)}
+              />
+              <span>Medium change completed (standard 12 mL)</span>
+            </label>
 
             <div style={{ marginBottom: 18 }}>
               <label style={label}>
@@ -1016,6 +1011,19 @@ const saveBtn: React.CSSProperties = {
   color: "#fff",
   border: "none",
   borderRadius: 12,
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const completionToggle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: 12,
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  color: "#334155",
   fontSize: 14,
   fontWeight: 700,
   cursor: "pointer",

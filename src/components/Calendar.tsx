@@ -162,7 +162,7 @@ export default function Calendar({
                     </div>
                   )}
 
-                  {reported && <div style={styles.volumeBadge}>✓ {duty!.volume_ml} mL</div>}
+                  {reported && <div style={styles.volumeBadge}>✓ medium changed</div>}
 
                   {isToday && duty?.member_id && !reported && (
                     <div style={styles.pendingBadge}>pending</div>

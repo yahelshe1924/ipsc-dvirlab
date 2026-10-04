@@ -545,7 +545,14 @@ export default function HomePage() {
             ) : (
               <>
                 <div style={badgeRow}>
-                  <Badge label="Medium change completed" variant="green" />
+                  <Badge
+                    label={
+                      todayDuty.volume_ml != null
+                        ? "Medium change completed"
+                        : "Medium change pending"
+                    }
+                    variant={todayDuty.volume_ml != null ? "green" : "amber"}
+                  />
                   <Badge
                     label={
                       todayDuty.split_assignee_id
@@ -576,15 +583,6 @@ export default function HomePage() {
                         ? `${todayMediumChangePlateCount} ${
                             todayMediumChangePlateCount === 1 ? "plate" : "plates"
                           }`
-                        : "--"
-                    }
-                  />
-                  <InfoItem
-                    label="Volume changed"
-                    value={
-                      todayDuty.volume_ml !== null &&
-                      todayDuty.volume_ml !== undefined
-                        ? `${todayDuty.volume_ml} mL`
                         : "--"
                     }
                   />

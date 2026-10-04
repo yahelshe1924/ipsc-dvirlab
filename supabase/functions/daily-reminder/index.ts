@@ -16,7 +16,7 @@
  *
  * What this function does:
  *   1. Checks today's duty assignment.
- *   2. If volume_ml is still null → send reminder email + build WhatsApp text.
+ *   2. If volume_ml is still null → send a completion reminder.
  *   3. Fetches responsible_contact from settings for CC.
  */
 
@@ -77,7 +77,7 @@ Deno.serve(async (_req) => {
     assigneeEmail,
     responsible,
     `Reminder: iPSC medium change due today (${todayISO})`,
-    `Hi ${assigneeName},\n\nThis is a reminder that the iPSC medium change for today (${todayISO}) has not yet been reported.\n\nPlease complete the change and log the volume in iPSC-DvirLab.\n\n— iPSC-DvirLab`,
+    `Hi ${assigneeName},\n\nThis is a reminder that the iPSC medium change for today (${todayISO}) has not yet been reported.\n\nPlease complete the standard 12 mL medium replacement and mark it as completed in iPSC-DvirLab.\n\n— iPSC-DvirLab`,
     gmailToken
   );
 
