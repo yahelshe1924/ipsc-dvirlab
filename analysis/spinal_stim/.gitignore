@@ -1,0 +1,6 @@
+_packages/
+results/
+spike_results/
+baseline_comparison/
+__pycache__/
+*.log

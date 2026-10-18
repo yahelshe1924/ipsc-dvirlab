@@ -137,7 +137,7 @@ export default function DayModal({
     const maintenancePlateCount =
       splitMaintenancePlateCount !== "" ? Number(splitMaintenancePlateCount) : null;
 
-    if (hasSplit && duty?.split_completed && totalPlateCount !== null) {
+    if (hasSplit && totalPlateCount !== null) {
       if (!Number.isInteger(totalPlateCount) || totalPlateCount <= 0) {
         alert("Please enter a whole number greater than 0 for total plates.");
         return;
@@ -158,6 +158,22 @@ export default function DayModal({
       }
     }
 
+    const shouldCompleteSplit = Boolean(
+      hasSplit &&
+        !duty?.split_completed &&
+        splitAssigneeId &&
+        splitPassageNumber &&
+        totalPlateCount !== null
+    );
+
+    const dutyAssignmentId =
+      (duty as (DutyAssignment & { id?: string | null }) | null)?.id ?? null;
+
+    if (shouldCompleteSplit && !dutyAssignmentId) {
+      alert("Save the duty assignment before reporting the completed split.");
+      return;
+    }
+
     const payload: Partial<DutyAssignment> = {
       member_id: selectedMemberId || null,
       // volume_ml remains the completion marker used by reminders and stats.
@@ -175,18 +191,62 @@ export default function DayModal({
           ? Number(splitMaintenancePlateCount)
           : null,
 
-      split_completed: hasSplit ? duty?.split_completed ?? false : false,
-      split_completed_at: hasSplit ? duty?.split_completed_at ?? null : null,
+      split_completed: hasSplit
+        ? shouldCompleteSplit || duty?.split_completed || false
+        : false,
+      split_completed_at: hasSplit
+        ? shouldCompleteSplit
+          ? new Date().toISOString()
+          : duty?.split_completed_at ?? null
+        : null,
     };
 
     setSaving(true);
     try {
+      if (shouldCompleteSplit && dutyAssignmentId && totalPlateCount !== null) {
+        const { data: nextOpenSplit, error: nextOpenSplitError } = await supabase
+          .rpc("get_next_open_split");
+
+        if (nextOpenSplitError) {
+          console.error("Could not load next open split:", nextOpenSplitError);
+          alert("Failed to check the next open split.");
+          return;
+        }
+
+        const nextSplit = Array.isArray(nextOpenSplit)
+          ? nextOpenSplit[0]
+          : nextOpenSplit;
+
+        if (!nextSplit?.id) {
+          alert("No open split was found.");
+          return;
+        }
+
+        if (Number(nextSplit.split_number) !== Number(splitPassageNumber)) {
+          alert(
+            `The next open split is P${nextSplit.split_number}, but this day is marked as P${splitPassageNumber}. Please fix the passage number first.`
+          );
+          return;
+        }
+
+        const { error } = await supabase.rpc("complete_next_split", {
+          p_duty_assignment_id: dutyAssignmentId,
+          p_user_id: loggedInMember.id,
+          p_performed_date: dateKey,
+          p_actual_plate_count: totalPlateCount - (maintenancePlateCount ?? 0),
+          p_maintenance_plate_count: maintenancePlateCount,
+        });
+
+        if (error) {
+          console.error("Error completing split:", error);
+          alert(error.message || "Failed to complete split.");
+          return;
+        }
+      }
+
       await onSave(dateKey, payload);
 
       if (hasSplit && duty?.split_completed && totalPlateCount !== null) {
-        const dutyAssignmentId =
-          (duty as (DutyAssignment & { id?: string | null }) | null)?.id ?? null;
-
         if (!dutyAssignmentId) {
           alert("Could not find the duty assignment id for this completed split.");
           return;
@@ -214,90 +274,6 @@ export default function DayModal({
   async function handleRemove() {
     await onRemoveAssignment(dateKey);
     onClose();
-  }
-
-  async function handleSplitComplete() {
-    if (!hasSplit || !splitAssigneeId || !splitPassageNumber || !splitPlateCount) return;
-
-    const totalPlateCount = Number(splitPlateCount);
-    const maintenancePlateCount = Number(splitMaintenancePlateCount);
-
-    if (!Number.isInteger(totalPlateCount) || totalPlateCount <= 0) {
-      alert("Please enter a whole number greater than 0 for total plates.");
-      return;
-    }
-
-    if (!Number.isInteger(maintenancePlateCount) || maintenancePlateCount < 0) {
-      alert("Please enter a whole number of maintenance plates.");
-      return;
-    }
-
-    if (maintenancePlateCount > totalPlateCount) {
-      alert("Maintenance plates cannot be greater than the total plate count.");
-      return;
-    }
-
-    const userPlateCount = totalPlateCount - maintenancePlateCount;
-
-    const dutyAssignmentId =
-      (duty as (DutyAssignment & { id?: string | null }) | null)?.id ?? null;
-
-    if (!dutyAssignmentId) {
-      alert("Could not find the duty assignment id for this day.");
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const { data: nextOpenSplit, error: nextOpenSplitError } = await supabase
-        .rpc("get_next_open_split");
-
-      if (nextOpenSplitError) {
-        console.error("Could not load next open split:", nextOpenSplitError);
-        alert("Failed to check the next open split.");
-        return;
-      }
-
-      const nextSplit = Array.isArray(nextOpenSplit) ? nextOpenSplit[0] : nextOpenSplit;
-
-      if (!nextSplit?.id) {
-        alert("No open split was found.");
-        return;
-      }
-
-      if (Number(nextSplit.split_number) !== Number(splitPassageNumber)) {
-        alert(
-          `The next open split is P${nextSplit.split_number}, but this day is marked as P${splitPassageNumber}. Please fix the passage number first.`
-        );
-        return;
-      }
-
-      const { error } = await supabase.rpc("complete_next_split", {
-        p_duty_assignment_id: dutyAssignmentId,
-        p_user_id: loggedInMember.id,
-        p_performed_date: dateKey,
-        p_actual_plate_count: userPlateCount,
-        p_maintenance_plate_count: maintenancePlateCount,
-      });
-
-      if (error) {
-        console.error("Error completing split:", error);
-        alert(error.message || "Failed to complete split.");
-        return;
-      }
-
-      await onSave(dateKey, {
-        split_assignee_id: splitAssigneeId,
-        split_passage_number: Number(splitPassageNumber),
-        split_plate_count: totalPlateCount,
-        split_maintenance_plate_count: maintenancePlateCount,
-        split_completed: true,
-        split_completed_at: new Date().toISOString(),
-      });
-    } finally {
-      setSaving(false);
-    }
   }
 
   const reporterName =
@@ -456,100 +432,6 @@ export default function DayModal({
               <p style={{ fontSize: 14, color: "#0f172a", margin: "4px 0" }}>
                 Split completed
               </p>
-            )}
-
-            {hasSplit && !duty?.split_completed && (
-              <div
-                style={{
-                  marginTop: 14,
-                  padding: 12,
-                  background: "#fff",
-                  borderRadius: 10,
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: "#0e7490",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    marginBottom: 10,
-                  }}
-                >
-                  Late split completion
-                </div>
-
-                <div style={{ marginBottom: 12 }}>
-                  <label style={label}>Passage number</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={prefixBadge}>P</span>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={splitPassageNumber}
-                      onChange={(e) => setSplitPassageNumber(e.target.value)}
-                      placeholder="e.g. 32"
-                      style={{ ...input, width: 120 }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 12 }}>
-                  <label style={label}>Total plates after split</label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={splitPlateCount}
-                    onChange={(e) => setSplitPlateCount(e.target.value)}
-                    placeholder="e.g. 3"
-                    style={{ ...input, width: 120 }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: 12 }}>
-                  <label style={label}>Maintenance plates included</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={splitMaintenancePlateCount}
-                    onChange={(e) => setSplitMaintenancePlateCount(e.target.value)}
-                    placeholder="e.g. 2"
-                    style={{ ...input, width: 120 }}
-                  />
-                  {splitPlateCount && splitMaintenancePlateCount && (
-                    <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>
-                      Next split capacity: {Number(splitMaintenancePlateCount || 0) * 5} plates
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSplitComplete}
-                  disabled={saving || !splitAssigneeId || !splitPassageNumber || !splitPlateCount}
-                  style={{
-                    ...chipButton,
-                    background: "#ecfeff",
-                    borderColor: "#67e8f9",
-                    color: "#0e7490",
-                    opacity:
-                      saving || !splitAssigneeId || !splitPassageNumber || !splitPlateCount
-                        ? 0.7
-                        : 1,
-                    cursor:
-                      saving || !splitAssigneeId || !splitPassageNumber || !splitPlateCount
-                        ? "not-allowed"
-                        : "pointer",
-                  }}
-                >
-                  {saving ? "Saving..." : "Mark split as completed"}
-                </button>
-              </div>
             )}
 
             {duty?.volume_ml != null && (
@@ -721,24 +603,13 @@ export default function DayModal({
                         )}
                       </div>
 
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          onClick={handleSplitComplete}
-                          disabled={saving}
-                          style={{
-                            ...chipButton,
-                            background: "#ecfeff",
-                            borderColor: "#67e8f9",
-                            color: "#0e7490",
-                            opacity: saving ? 0.7 : 1,
-                            cursor: saving ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          {saving ? "Saving..." : "Mark split as completed"}
-                        </button>
+                      {!duty?.split_completed && splitPassageNumber && splitPlateCount && (
+                        <p style={{ fontSize: 12, color: "#0e7490", margin: "0 0 10px" }}>
+                          Saving these execution details will mark this split as completed.
+                        </p>
+                      )}
 
-                        {duty?.split_completed && (
+                      {duty?.split_completed && (
                           <span
                             style={{
                               display: "inline-flex",
@@ -753,8 +624,7 @@ export default function DayModal({
                           >
                             Completed
                           </span>
-                        )}
-                      </div>
+                      )}
 
                       {splitWhatsappText && (
                         <div style={{ ...whatsappBox, marginTop: 12 }}>
@@ -877,7 +747,11 @@ export default function DayModal({
             )}
 
             <button onClick={handleSave} disabled={saving} style={saveBtn}>
-              {saving ? "Saving..." : "Save changes"}
+              {saving
+                ? "Saving..."
+                : hasSplit && !duty?.split_completed && splitPassageNumber && splitPlateCount
+                  ? "Save changes & complete split"
+                  : "Save changes"}
             </button>
           </>
         )}
