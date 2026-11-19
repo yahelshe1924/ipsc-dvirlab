@@ -36,7 +36,8 @@ export default function PosterPage() {
         .select("duty_date, member_id, volume_ml").not("volume_ml", "is", null)
         .lte("duty_date", through).order("duty_date").range(from, to)),
       readAll<CompletedSplit>((from, to) => db.from("splits")
-        .select("id, performed_date, completed_at").eq("status", "completed").order("id").range(from, to)),
+        .select("id, performed_date, completed_at, completed_by_member_id, actual_plate_count, maintenance_plate_count, flow_plate_count")
+        .eq("status", "completed").order("id").range(from, to)),
       readAll<PlateRegistration>((from, to) => db.from("split_registrations")
         .select("split_id, member_id, plates_count")
         .order("split_id").order("member_id").range(from, to)),
@@ -49,10 +50,16 @@ export default function PosterPage() {
     return () => { active = false; };
   }, [through]);
 
-  const rankings = [
+  const activityRankings = [
     { key: "weekend", title: "החלפות בסופי שבוע ובחגים", unit: "החלפות" },
     { key: "volume", title: "נפח מדיום מצטבר", unit: "מ״ל" },
     { key: "plates", title: "צלחות שהוקצו לחברי הצוות", unit: "צלחות" },
+  ] as const;
+
+  const splitRankings = [
+    { key: "splits", title: "פיצולים שבוצעו", unit: "פיצולים" },
+    { key: "splitPlates", title: "צלחות שהוכנו בפיצולים", unit: "צלחות" },
+    { key: "weekendSplits", title: "פיצולים בסופי שבוע ובחגים", unit: "פיצולים" },
   ] as const;
 
   return (
@@ -85,32 +92,40 @@ export default function PosterPage() {
               ))}
             </section>
 
-            <section className={styles.rankings} aria-label="מובילי הפעילות">
-              {rankings.map(({ key, title, unit }) => {
-                const sorted = report.scores.filter((person) => person[key] > 0)
-                  .sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name, "he"));
-                const cutoff = sorted[2]?.[key] ?? 0;
-                const leaders = sorted.filter((person) => person[key] >= cutoff);
-                return (
-                  <div className={styles.panel} key={key}>
-                    <h2>{title}</h2>
-                    <p className={styles.unit}>{unit}</p>
-                    {leaders.length ? (
-                      <ol className={styles.leaders}>
-                        {leaders.map((person) => (
-                          <li key={person.id}>
-                            <div><bdi>{person.name}</bdi><strong>{number.format(person[key])}</strong></div>
-                            <span className={styles.track} aria-hidden="true">
-                              <span style={{ width: `${person[key] / leaders[0][key] * 100}%` }} />
-                            </span>
-                          </li>
-                        ))}
-                      </ol>
-                    ) : <p>אין נתונים משויכים לחברי צוות</p>}
-                  </div>
-                );
-              })}
-            </section>
+            {[
+              { title: "מובילי החלפות המדיום והקצאות הצלחות", rankings: activityRankings },
+              { title: "מובילי הפיצולים", rankings: splitRankings },
+            ].map(({ title: groupTitle, rankings }) => (
+              <section className={styles.rankingGroup} key={groupTitle} aria-label={groupTitle}>
+                <h2>{groupTitle}</h2>
+                <div className={styles.rankings}>
+                  {rankings.map(({ key, title, unit }) => {
+                    const sorted = report.scores.filter((person) => person[key] > 0)
+                      .sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name, "he"));
+                    const cutoff = sorted[2]?.[key] ?? 0;
+                    const leaders = sorted.filter((person) => person[key] >= cutoff);
+                    return (
+                      <div className={styles.panel} key={key}>
+                        <h3>{title}</h3>
+                        <p className={styles.unit}>{unit}</p>
+                        {leaders.length ? (
+                          <ol className={styles.leaders}>
+                            {leaders.map((person) => (
+                              <li key={person.id}>
+                                <div><bdi>{person.name}</bdi><strong>{number.format(person[key])}</strong></div>
+                                <span className={styles.track} aria-hidden="true">
+                                  <span style={{ width: `${person[key] / leaders[0][key] * 100}%` }} />
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : <p>אין נתונים משויכים לחברי צוות</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
 
             {([
               { title: "החלפות מדיום לפי חודש", series: [
@@ -152,7 +167,7 @@ export default function PosterPage() {
             })}
             <footer className={styles.notes}>
               <p><strong>{report.medium ? number.format(Math.round(report.weekend / report.medium * 100)) : "0"}%</strong> מהחלפות המדיום בוצעו בסופי שבוע ובחגים.</p>
-              <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. סופי שבוע כוללים שישי ושבת, והחגים מסווגים לפי מסך הסטטיסטיקה. נפח המדיום מבוסס על הערך השמור באפליקציה, שכיום מתעד 12 מ״ל להחלפה. צלחות נספרות לפי ההקצאות לחברי צוות בפיצולים שהושלמו.</p>
+              <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. סופי שבוע כוללים שישי ושבת, והחגים מסווגים לפי מסך הסטטיסטיקה. נפח המדיום מבוסס על הערך השמור באפליקציה, שכיום מתעד 12 מ״ל להחלפה. צלחות שהוקצו נספרות לפי הרישום לחברי הצוות בפיצולים שהושלמו. בדירוג הפיצולים, הפעילות משויכת למי שרשום כמבצע. מספר הצלחות שהוכנו כולל צלחות לצוות, לתחזוקה ול־Flow, עבור פיצולים שבהם נשמרה ספירה בפועל.</p>
             </footer>
           </div>
         )}

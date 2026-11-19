@@ -13,7 +13,8 @@
 .totals strong { color: #174b46; font-size: clamp(1.4rem, 4vw, 2.4rem); line-height: 1.1; }
 .rankings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .panel { border: 1px solid #e5d9c7; background: #fffefa; border-radius: 14px; padding: 15px; }
-.panel h2 { font-size: 1.05rem; margin: 0; }
+.rankingGroup > h2 { font-size: 1.12rem; margin: 0 0 8px; }
+.panel h2, .panel h3 { font-size: 1.05rem; margin: 0; }
 .unit, .notes, .legend, .column { color: #45605e; font-size: .8rem; }
 .unit { margin: 4px 0 12px; }
 .leaders { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
@@ -48,7 +49,7 @@
   .hero h1 { font-size: 44px; }
   .content { padding: 14px; gap: 9px; }
   .panel, .totals div { padding: 9px; break-inside: avoid; }
-  .rankings, .totals, .notes { break-inside: avoid; }
+  .rankingGroup, .totals, .notes { break-inside: avoid; }
   .plot { height: 68px; }
   .timeline { grid-template-columns: repeat(auto-fit, minmax(39px, 1fr)); }
 }
