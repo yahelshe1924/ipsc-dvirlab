@@ -84,7 +84,7 @@ export default function PosterPage() {
     let active = true;
     Promise.all([
       readAll<MediumDuty>((from, to) => db.from("duty_assignments")
-        .select("duty_date, member_id, volume_ml").not("volume_ml", "is", null)
+        .select("duty_date, member_id").not("volume_ml", "is", null)
         .lte("duty_date", through).order("duty_date").range(from, to)),
       readAll<CompletedSplit>((from, to) => db.from("splits")
         .select("id, performed_date, completed_at, completed_by_member_id, actual_plate_count, maintenance_plate_count, flow_plate_count")
@@ -103,8 +103,8 @@ export default function PosterPage() {
 
   const maxMonthlyPlates = Math.max(1, ...(report?.timeline.map(({ plates }) => plates) ?? []));
   const mediumRankings = [
-    { key: "weekend", title: "החלפות בסופי שבוע ובחגים", unit: "החלפות" },
-    { key: "weekday", title: "החלפות בימי חול", unit: "החלפות" },
+    { key: "weekend", title: "החלפות בשישי ובשבת", unit: "החלפות" },
+    { key: "weekday", title: "החלפות בימים ראשון–חמישי", unit: "החלפות" },
   ] as const;
 
   const splitRankings = [
@@ -140,13 +140,6 @@ export default function PosterPage() {
               ].map(([label, value]) => (
                 <div key={label}><strong>{number.format(Number(value))}</strong><span>{label}</span></div>
               ))}
-              <div>
-                <strong>{report.dutiesWithPlateEstimate
-                  ? new Intl.NumberFormat("he-IL", { maximumFractionDigits: 3 }).format(report.volume / 1000)
-                  : "—"}</strong>
-                <span>ליטר מדיום · אומדן</span>
-                <small>{number.format(report.dutiesWithPlateEstimate)} מתוך {number.format(report.medium)} החלפות נכללו</small>
-              </div>
             </section>
 
             {[
@@ -202,8 +195,8 @@ export default function PosterPage() {
               </div>
             </section>
             <footer className={styles.notes}>
-              <p><strong>{report.medium ? number.format(Math.round(report.weekend / report.medium * 100)) : "0"}%</strong> מהחלפות המדיום בוצעו בסופי שבוע ובחגים.</p>
-              <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. סופי שבוע כוללים שישי ושבת, והחגים מסווגים לפי מסך הסטטיסטיקה. אומדן נפח המדיום מחושב לכל יום לפי הנפח הרשום לצלחת כפול מספר צלחות התחזוקה בפיצול האחרון שקדם ליום ההחלפה. האומדן כולל ימים שיש עבורם נתון מהפיצול הקודם ושבהם לא בוצע פיצול נוסף באותו יום. צלחות שהוקצו נספרות לפי הרישום לחברי הצוות בפיצולים שהושלמו. בדירוג הפיצולים, הפעילות משויכת למי שרשום כמבצע. מספר הצלחות שהוכנו כולל צלחות לצוות, לתחזוקה ול־Flow, עבור פיצולים שבהם נשמרה ספירה בפועל.</p>
+              <p><strong>{report.medium ? number.format(Math.round(report.weekend / report.medium * 100)) : "0"}%</strong> מהחלפות המדיום דווחו עבור שישי או שבת.</p>
+              <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. בדירוג החלפות המדיום הסיווג הוא לפי יום בשבוע. חגים בימים ראשון–חמישי נספרים בקטגוריה זו. בדירוג הפיצולים החגים מסווגים לפי מסך הסטטיסטיקה. צלחות שהוקצו נספרות לפי הרישום לחברי הצוות בפיצולים שהושלמו. בדירוג הפיצולים, הפעילות משויכת למי שרשום כמבצע. מספר הצלחות שהוכנו כולל צלחות לצוות, לתחזוקה ול־Flow, עבור פיצולים שבהם נשמרה ספירה בפועל.</p>
             </footer>
           </div>
         )}

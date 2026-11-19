@@ -1,6 +1,6 @@
 import { getDayCategory } from "@/lib/holidays";
 
-export type MediumDuty = { duty_date: string; member_id: string | null; volume_ml: number };
+export type MediumDuty = { duty_date: string; member_id: string | null };
 export type CompletedSplit = {
   id: string;
   performed_date: string | null;
@@ -46,13 +46,11 @@ export function summarize(
   }
 
   let plates = 0;
-  const maintenanceHistory: { date: string; count: number | null; completedAt: string }[] = [];
   const splitDates = new Map<string, string>();
   for (const split of splits) {
     const date = split.performed_date ?? (split.completed_at && israelDate.format(new Date(split.completed_at)));
     if (!date || date > through) continue;
     splitDates.set(split.id, date);
-    maintenanceHistory.push({ date, count: split.maintenance_plate_count, completedAt: split.completed_at ?? "" });
     monthFor(date);
 
     const performer = split.completed_by_member_id && scores.get(split.completed_by_member_id);
@@ -71,31 +69,19 @@ export function summarize(
     plates += registration.plates_count;
   }
 
-  maintenanceHistory.sort((a, b) => a.date.localeCompare(b.date) || a.completedAt.localeCompare(b.completedAt));
   let medium = 0;
   let weekend = 0;
-  let volume = 0;
-  let dutiesWithPlateEstimate = 0;
-  let nextSplit = 0;
-  let previousSplit: typeof maintenanceHistory[number] | undefined;
-  for (const duty of duties.slice().sort((a, b) => a.duty_date.localeCompare(b.duty_date))) {
+  for (const duty of duties) {
     if (duty.duty_date > through) continue;
-    const special = isWeekendOrHoliday(duty.duty_date);
+    const day = new Date(duty.duty_date + "T00:00:00Z").getUTCDay();
+    const isWeekend = day === 5 || day === 6;
     const counts = monthFor(duty.duty_date).mediumCounts;
     const memberId = duty.member_id && scores.has(duty.member_id) ? duty.member_id : null;
     counts.set(memberId, (counts.get(memberId) ?? 0) + 1);
     medium++;
-    while (nextSplit < maintenanceHistory.length && maintenanceHistory[nextSplit].date < duty.duty_date) {
-      previousSplit = maintenanceHistory[nextSplit++];
-    }
-    if (previousSplit && previousSplit.count !== null
-        && maintenanceHistory[nextSplit]?.date !== duty.duty_date) {
-      volume += previousSplit.count * duty.volume_ml;
-      dutiesWithPlateEstimate++;
-    }
-    if (special) weekend++;
+    if (isWeekend) weekend++;
     const score = duty.member_id && scores.get(duty.member_id);
-    if (score) score[special ? "weekend" : "weekday"]++;
+    if (score) score[isWeekend ? "weekend" : "weekday"]++;
   }
 
   const timeline: (MonthStats & { key: string })[] = [];
@@ -108,5 +94,5 @@ export function summarize(
     }
   }
 
-  return { start, timeline, scores: Array.from(scores.values()), medium, weekend, volume, dutiesWithPlateEstimate, plates, splits: splitDates.size };
+  return { start, timeline, scores: Array.from(scores.values()), medium, weekend, plates, splits: splitDates.size };
 }
