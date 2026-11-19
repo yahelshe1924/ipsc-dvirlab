@@ -1,0 +1,149 @@
+{
+  "session": "stim phys only 20nA_101126_261110_103021",
+  "signature": [
+    [
+      "G:\\\u05d4\u05d0\u05d7\u05e1\u05d5\u05df \u05e9\u05dc\u05d9\\PhD results\\Ex-Vivo (2026)\\stim+read intact+cut SC (011126)\\stim phys only 20nA_101126_261110_103021\\stim phys only 20nA_101126_261110_103021.rhs",
+      319875030,
+      1794299478000000000
+    ]
+  ],
+  "files": [
+    {
+      "file": "G:\\\u05d4\u05d0\u05d7\u05e1\u05d5\u05df \u05e9\u05dc\u05d9\\PhD results\\Ex-Vivo (2026)\\stim+read intact+cut SC (011126)\\stim phys only 20nA_101126_261110_103021\\stim phys only 20nA_101126_261110_103021.rhs",
+      "size_bytes": 319875030,
+      "samples": 1632000,
+      "first_tick": 0,
+      "last_tick": 1631999,
+      "gaps": 0,
+      "selected_channels": [
+        {
+          "port_name": "Port A",
+          "port_prefix": "A",
+          "port_number": 1,
+          "native_channel_name": "A-011",
+          "custom_channel_name": "rec",
+          "native_order": 11,
+          "custom_order": 11,
+          "chip_channel": 11,
+          "board_stream": 0,
+          "electrode_impedance_magnitude": 0.0,
+          "electrode_impedance_phase": 0.0
+        },
+        {
+          "port_name": "Port A",
+          "port_prefix": "A",
+          "port_number": 1,
+          "native_channel_name": "A-004",
+          "custom_channel_name": "stim",
+          "native_order": 4,
+          "custom_order": 4,
+          "chip_channel": 4,
+          "board_stream": 0,
+          "electrode_impedance_magnitude": 0.0,
+          "electrode_impedance_phase": 0.0
+        },
+        {
+          "port_name": "Port A",
+          "port_prefix": "A",
+          "port_number": 1,
+          "native_channel_name": "A-000",
+          "custom_channel_name": "A-000",
+          "native_order": 0,
+          "custom_order": 0,
+          "chip_channel": 0,
+          "board_stream": 0,
+          "electrode_impedance_magnitude": 0.0,
+          "electrode_impedance_phase": 0.0
+        },
+        {
+          "port_name": "Port A",
+          "port_prefix": "A",
+          "port_number": 1,
+          "native_channel_name": "A-001",
+          "custom_channel_name": "A-001",
+          "native_order": 1,
+          "custom_order": 1,
+          "chip_channel": 1,
+          "board_stream": 0,
+          "electrode_impedance_magnitude": 0.0,
+          "electrode_impedance_phase": 0.0
+        },
+        {
+          "port_name": "Port A",
+          "port_prefix": "A",
+          "port_number": 1,
+          "native_channel_name": "A-003",
+          "custom_channel_name": "A-003",
+          "native_order": 3,
+          "custom_order": 3,
+          "chip_channel": 3,
+          "board_stream": 0,
+          "electrode_impedance_magnitude": 0.0,
+          "electrode_impedance_phase": 0.0
+        }
+      ],
+      "active_stim_channels": [
+        "A-004"
+      ],
+      "fs": 30000.0,
+      "bandwidth": {
+        "frequency_parameters": {
+          "amplifier_sample_rate": 30000.0,
+          "board_adc_sample_rate": 30000.0,
+          "board_dig_in_sample_rate": 30000.0,
+          "desired_dsp_cutoff_frequency": 1.0,
+          "actual_dsp_cutoff_frequency": 1.165827989578247,
+          "dsp_enabled": 1,
+          "desired_lower_bandwidth": 0.10000000149011612,
+          "desired_lower_settle_bandwidth": 1000.0,
+          "actual_lower_bandwidth": 0.09452909976243973,
+          "actual_lower_settle_bandwidth": 1205.8927001953125,
+          "desired_upper_bandwidth": 7500.0,
+          "actual_upper_bandwidth": 7603.76513671875,
+          "notch_filter_frequency": 50,
+          "desired_impedance_test_frequency": 1000.0,
+          "actual_impedance_test_frequency": 1000.0
+        },
+        "notch_filter_frequency": 50,
+        "stim_step_size": 9.99999993922529e-09,
+        "dc_amplifier_data_saved": 1
+      },
+      "notes": {
+        "note1": "",
+        "note2": "",
+        "note3": ""
+      },
+      "reader_validation": "First block matches official Intan block reader",
+      "header_parameters": {
+        "num_samples_per_data_block": 128,
+        "sample_rate": 30000.0,
+        "dsp_enabled": 1,
+        "actual_dsp_cutoff_frequency": 1.165827989578247,
+        "actual_lower_bandwidth": 0.09452909976243973,
+        "actual_lower_settle_bandwidth": 1205.8927001953125,
+        "actual_upper_bandwidth": 7603.76513671875,
+        "desired_dsp_cutoff_frequency": 1.0,
+        "desired_lower_bandwidth": 0.10000000149011612,
+        "desired_lower_settle_bandwidth": 1000.0,
+        "desired_upper_bandwidth": 7500.0,
+        "notch_filter_frequency": 50,
+        "desired_impedance_test_frequency": 1000.0,
+        "actual_impedance_test_frequency": 1000.0,
+        "amp_settle_mode": 0,
+        "charge_recovery_mode": 0,
+        "stim_step_size": 9.99999993922529e-09,
+        "recovery_current_limit": 9.99999993922529e-09,
+        "recovery_target_voltage": 0.0,
+        "dc_amplifier_data_saved": 1,
+        "eval_board_mode": 14,
+        "reference_channel": "n/a",
+        "num_amplifier_channels": 32,
+        "num_board_adc_channels": 0,
+        "num_board_dac_channels": 0,
+        "num_board_dig_in_channels": 0,
+        "num_board_dig_out_channels": 0
+      }
+    }
+  ],
+  "split_continuity_verified": true
+}

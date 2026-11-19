@@ -231,7 +231,7 @@ export default function DayModal({
 
         const { error } = await supabase.rpc("complete_next_split", {
           p_duty_assignment_id: dutyAssignmentId,
-          p_user_id: loggedInMember.id,
+          p_user_id: splitAssigneeId,
           p_performed_date: dateKey,
           p_actual_plate_count: totalPlateCount - (maintenancePlateCount ?? 0),
           p_maintenance_plate_count: maintenancePlateCount,
@@ -288,6 +288,9 @@ export default function DayModal({
         : `Tomorrow's duty: no one is assigned yet.`) +
       (nextDaySplitAssigneeName
         ? ` ${nextDaySplitAssigneeName} will split the cells tomorrow.`
+        : ``) +
+      (tomorrowAssigneeName
+        ? ` Please tag tomorrow's duty assignee: @`
         : ``)
     : null;
 
@@ -445,6 +448,121 @@ export default function DayModal({
                 "{duty.notes}"
               </p>
             )}
+
+            <div
+              style={{
+                marginTop: 16,
+                padding: 14,
+                background: "#fff",
+                borderRadius: 10,
+                border: "1px solid #cbd5e1",
+              }}
+            >
+              <div style={{ ...label, marginBottom: 10 }}>Edit past split</div>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={hasSplit}
+                  disabled={Boolean(duty?.split_completed)}
+                  onChange={(e) => setHasSplit(e.target.checked)}
+                />
+                <span>A split was performed on this date</span>
+              </label>
+
+              {hasSplit && (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={label}>Split assignee</label>
+                    <select
+                      value={splitAssigneeId}
+                      onChange={(e) => setSplitAssigneeId(e.target.value)}
+                      style={select}
+                    >
+                      <option value="">— Select person —</option>
+                      {activePeople.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={label}>Passage number</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={prefixBadge}>P</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={splitPassageNumber}
+                        disabled={Boolean(duty?.split_completed)}
+                        onChange={(e) => setSplitPassageNumber(e.target.value)}
+                        style={{ ...input, width: 120 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={label}>Total plates after split</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={splitPlateCount}
+                      onChange={(e) => setSplitPlateCount(e.target.value)}
+                      style={{ ...input, width: 120 }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={label}>Maintenance plates included</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={splitMaintenancePlateCount}
+                      onChange={(e) => setSplitMaintenancePlateCount(e.target.value)}
+                      style={{ ...input, width: 120 }}
+                    />
+                  </div>
+
+                  {!duty?.split_completed && splitPassageNumber && splitPlateCount && (
+                    <p style={{ fontSize: 12, color: "#0e7490", margin: "0 0 12px" }}>
+                      Saving will mark P{splitPassageNumber} as completed on {dateKey}.
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={
+                      saving ||
+                      !splitAssigneeId ||
+                      !splitPassageNumber ||
+                      !splitPlateCount
+                    }
+                    style={{
+                      ...saveBtn,
+                      opacity:
+                        saving ||
+                        !splitAssigneeId ||
+                        !splitPassageNumber ||
+                        !splitPlateCount
+                          ? 0.7
+                          : 1,
+                    }}
+                  >
+                    {saving
+                      ? "Saving..."
+                      : duty?.split_completed
+                        ? "Save split changes"
+                        : "Save & complete split"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ) : (
           <>

@@ -1,0 +1,30 @@
+[
+  {
+    "recording": "stim phys test 4 10nA_081126_261108_124053",
+    "post_settle_us": "2000",
+    "pre_settle_us": "0",
+    "lower_settle_Hz": "1000",
+    "stim_baseline_V": -0.07692,
+    "stim_early_min_V": -3.59601,
+    "stim_early_max_V": -0.07692,
+    "stim_max_abs_change_V": 3.5190900000000003,
+    "rec_baseline_V": -0.057690000000000005,
+    "rec_early_min_V": -0.057690000000000005,
+    "rec_early_max_V": -0.057690000000000005,
+    "rec_max_abs_change_V": 0.0
+  },
+  {
+    "recording": "stim phys test 4 20nA_081126_261108_124215",
+    "post_settle_us": "2000",
+    "pre_settle_us": "0",
+    "lower_settle_Hz": "1000",
+    "stim_baseline_V": -0.07692,
+    "stim_early_min_V": -3.59601,
+    "stim_early_max_V": -0.07692,
+    "stim_max_abs_change_V": 3.5190900000000003,
+    "rec_baseline_V": -0.057690000000000005,
+    "rec_early_min_V": -0.057690000000000005,
+    "rec_early_max_V": -0.057690000000000005,
+    "rec_max_abs_change_V": 0.0
+  }
+]

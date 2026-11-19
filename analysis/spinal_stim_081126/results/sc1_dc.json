@@ -1,0 +1,58 @@
+[
+  {
+    "recording": "stim sc1 10nA_081126_261108_130601",
+    "post_settle_us": "5000",
+    "pre_settle_us": "0",
+    "lower_settle_Hz": "1000",
+    "stim_baseline_V": -0.07692,
+    "stim_early_min_V": -3.59601,
+    "stim_early_max_V": -0.07692,
+    "stim_max_abs_change_V": 3.5190900000000003,
+    "rec_baseline_V": -0.057690000000000005,
+    "rec_early_min_V": -0.057690000000000005,
+    "rec_early_max_V": -0.057690000000000005,
+    "rec_max_abs_change_V": 0.0
+  },
+  {
+    "recording": "stim sc1 20nA_081126_261108_130724",
+    "post_settle_us": "5000",
+    "pre_settle_us": "0",
+    "lower_settle_Hz": "1000",
+    "stim_baseline_V": -0.07692,
+    "stim_early_min_V": -3.59601,
+    "stim_early_max_V": -0.07692,
+    "stim_max_abs_change_V": 3.5190900000000003,
+    "rec_baseline_V": -0.057690000000000005,
+    "rec_early_min_V": -0.057690000000000005,
+    "rec_early_max_V": -0.057690000000000005,
+    "rec_max_abs_change_V": 0.0
+  },
+  {
+    "recording": "stim sc1 cut 10nA_081126_261108_130922",
+    "post_settle_us": "5000",
+    "pre_settle_us": "0",
+    "lower_settle_Hz": "1000",
+    "stim_baseline_V": -0.07692,
+    "stim_early_min_V": -3.59601,
+    "stim_early_max_V": -0.07692,
+    "stim_max_abs_change_V": 3.5190900000000003,
+    "rec_baseline_V": -0.057690000000000005,
+    "rec_early_min_V": -0.057690000000000005,
+    "rec_early_max_V": -0.057690000000000005,
+    "rec_max_abs_change_V": 0.0
+  },
+  {
+    "recording": "stim sc1 cut 20nA_081126_261108_131043",
+    "post_settle_us": "5000",
+    "pre_settle_us": "0",
+    "lower_settle_Hz": "1000",
+    "stim_baseline_V": -0.07692,
+    "stim_early_min_V": -3.61524,
+    "stim_early_max_V": -0.07692,
+    "stim_max_abs_change_V": 3.53832,
+    "rec_baseline_V": -0.057690000000000005,
+    "rec_early_min_V": -0.057690000000000005,
+    "rec_early_max_V": -0.057690000000000005,
+    "rec_max_abs_change_V": 0.0
+  }
+]

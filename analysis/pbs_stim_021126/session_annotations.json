@@ -1,0 +1,41 @@
+{
+  "stim test PBS settle 5uA_261102_125310": {
+    "cage_grounded": true,
+    "expected_current_uA": 5
+  },
+  "stim test PBS settle 5uA_261102_125436": {
+    "cage_grounded": true,
+    "expected_current_uA": 1
+  },
+  "stim test PBS settle 5uA_261102_125543": {
+    "cage_grounded": true,
+    "expected_current_uA": 2
+  },
+  "stim test PBS settle_261102_132232": {
+    "comparison": "reassembly",
+    "exclude_from_settle_comparison": true,
+    "expected_current_uA": 2
+  },
+  "stim test PBS settle_261102_133546": {
+    "comparison": "reassembly",
+    "exclude_from_settle_comparison": true,
+    "expected_current_uA": 2
+  },
+  "stim test PBS settle_261102_141016": {
+    "comparison": "reassembly",
+    "exclude_from_settle_comparison": true,
+    "expected_current_uA": 2
+  },
+  "stim test PBS settle_261102_142034": {
+    "comparison": "reassembly",
+    "exclude_from_settle_comparison": true,
+    "expected_current_uA": 2,
+    "actual_stored_current_uA": 1
+  },
+  "stim test PBS settle_261102_144002": {
+    "comparison": "reassembly",
+    "exclude_from_settle_comparison": true,
+    "expected_current_uA": 1,
+    "physical_mapping_may_have_changed": true
+  }
+}

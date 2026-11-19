@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { getDayCategory } from "@/lib/holidays";
 import { getColor } from "@/lib/colors";
@@ -189,7 +190,7 @@ export default function StatsPage() {
           marginBottom: 20,
         }}
       >
-        <h2 style={h2}>Statistics</h2>
+        <div><h2 style={h2}>Statistics</h2><Link href="/stats/poster">Activity poster</Link></div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button style={navBtn} onClick={() => changeMonth(-1)}>‹</button>
           <span style={{ fontSize: 14, fontWeight: 600, minWidth: 130, textAlign: "center" }}>
