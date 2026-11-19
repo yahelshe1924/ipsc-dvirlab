@@ -102,10 +102,9 @@ export default function PosterPage() {
   }, [through]);
 
   const maxMonthlyPlates = Math.max(1, ...(report?.timeline.map(({ plates }) => plates) ?? []));
-  const activityRankings = [
+  const mediumRankings = [
     { key: "weekend", title: "החלפות בסופי שבוע ובחגים", unit: "החלפות" },
-    { key: "volume", title: "נפח מדיום מצטבר", unit: "מ״ל" },
-    { key: "plates", title: "צלחות שהוקצו לחברי הצוות", unit: "צלחות" },
+    { key: "weekday", title: "החלפות בימי חול", unit: "החלפות" },
   ] as const;
 
   const splitRankings = [
@@ -136,25 +135,31 @@ export default function PosterPage() {
             <section className={styles.totals} aria-label="מדדים מצטברים">
               {[
                 ["החלפות מדיום", report.medium],
-                ["מ״ל מדיום", report.volume],
                 ["צלחות שהוקצו", report.plates],
                 ["פיצולים שהושלמו", report.splits],
               ].map(([label, value]) => (
                 <div key={label}><strong>{number.format(Number(value))}</strong><span>{label}</span></div>
               ))}
+              <div>
+                <strong>{report.dutiesWithPlateEstimate
+                  ? new Intl.NumberFormat("he-IL", { maximumFractionDigits: 3 }).format(report.volume / 1000)
+                  : "—"}</strong>
+                <span>ליטר מדיום · אומדן</span>
+                <small>{number.format(report.dutiesWithPlateEstimate)} מתוך {number.format(report.medium)} החלפות נכללו</small>
+              </div>
             </section>
 
             {[
-              { title: "מובילי החלפות המדיום והקצאות הצלחות", rankings: activityRankings },
-              { title: "מובילי הפיצולים", rankings: splitRankings },
-            ].map(({ title: groupTitle, rankings }) => (
+              { title: "דירוג מחליפי המדיום", rankings: mediumRankings, showAll: true },
+              { title: "מובילי הפיצולים", rankings: splitRankings, showAll: false },
+            ].map(({ title: groupTitle, rankings, showAll }) => (
               <section className={styles.rankingGroup} key={groupTitle} aria-label={groupTitle}>
                 <h2>{groupTitle}</h2>
-                <div className={styles.rankings}>
+                <div className={showAll ? styles.mediumRankings : styles.rankings}>
                   {rankings.map(({ key, title, unit }) => {
-                    const sorted = report.scores.filter((person) => person[key] > 0)
+                    const sorted = report.scores.filter((person) => showAll ? person.weekday + person.weekend > 0 : person[key] > 0)
                       .sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name, "he"));
-                    const cutoff = sorted[2]?.[key] ?? 0;
+                    const cutoff = showAll ? 0 : sorted[2]?.[key] ?? 0;
                     const leaders = sorted.filter((person) => person[key] >= cutoff);
                     return (
                       <div className={styles.panel} key={key}>
@@ -166,7 +171,7 @@ export default function PosterPage() {
                               <li key={person.id}>
                                 <div><bdi>{person.name}</bdi><strong>{number.format(person[key])}</strong></div>
                                 <span className={styles.track} aria-hidden="true">
-                                  <span style={{ width: `${person[key] / leaders[0][key] * 100}%` }} />
+                                  <span style={{ width: `${person[key] / Math.max(1, leaders[0][key]) * 100}%` }} />
                                 </span>
                               </li>
                             ))}
@@ -198,7 +203,7 @@ export default function PosterPage() {
             </section>
             <footer className={styles.notes}>
               <p><strong>{report.medium ? number.format(Math.round(report.weekend / report.medium * 100)) : "0"}%</strong> מהחלפות המדיום בוצעו בסופי שבוע ובחגים.</p>
-              <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. סופי שבוע כוללים שישי ושבת, והחגים מסווגים לפי מסך הסטטיסטיקה. נפח המדיום מבוסס על הערך השמור באפליקציה, שכיום מתעד 12 מ״ל להחלפה. צלחות שהוקצו נספרות לפי הרישום לחברי הצוות בפיצולים שהושלמו. בדירוג הפיצולים, הפעילות משויכת למי שרשום כמבצע. מספר הצלחות שהוכנו כולל צלחות לצוות, לתחזוקה ול־Flow, עבור פיצולים שבהם נשמרה ספירה בפועל.</p>
+              <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. סופי שבוע כוללים שישי ושבת, והחגים מסווגים לפי מסך הסטטיסטיקה. אומדן נפח המדיום מחושב לכל יום לפי הנפח הרשום לצלחת כפול מספר צלחות התחזוקה בפיצול האחרון שקדם ליום ההחלפה. האומדן כולל ימים שיש עבורם נתון מהפיצול הקודם ושבהם לא בוצע פיצול נוסף באותו יום. צלחות שהוקצו נספרות לפי הרישום לחברי הצוות בפיצולים שהושלמו. בדירוג הפיצולים, הפעילות משויכת למי שרשום כמבצע. מספר הצלחות שהוכנו כולל צלחות לצוות, לתחזוקה ול־Flow, עבור פיצולים שבהם נשמרה ספירה בפועל.</p>
             </footer>
           </div>
         )}
