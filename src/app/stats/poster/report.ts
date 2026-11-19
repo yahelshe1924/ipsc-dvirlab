@@ -11,7 +11,9 @@ export type CompletedSplit = {
   flow_plate_count: number | null;
 };
 export type PlateRegistration = { split_id: string; member_id: string | null; plates_count: number };
-export type Person = { id: string; full_name: string };
+export type Person = { id: string; full_name: string; color_index: number };
+
+type MonthStats = { mediumCounts: Map<string | null, number>; plates: number };
 
 export const israelDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Jerusalem" });
 
@@ -27,18 +29,18 @@ export function summarize(
   people: Person[],
   through: string,
 ) {
-  const scores = new Map(people.map(({ id, full_name }) => [
+  const scores = new Map(people.map(({ id, full_name, color_index }) => [
     id, {
-      id, name: full_name, weekend: 0, volume: 0, plates: 0,
+      id, name: full_name, colorIndex: color_index, weekend: 0, volume: 0, plates: 0,
       splits: 0, splitPlates: 0, weekendSplits: 0,
     },
   ]));
-  const months = new Map<string, { weekday: number; weekend: number; splits: number; plates: number }>();
+  const months = new Map<string, MonthStats>();
   let start = "";
   function monthFor(date: string) {
     if (!start || date < start) start = date;
     const key = date.slice(0, 7);
-    const month = months.get(key) ?? { weekday: 0, weekend: 0, splits: 0, plates: 0 };
+    const month = months.get(key) ?? { mediumCounts: new Map<string | null, number>(), plates: 0 };
     months.set(key, month);
     return month;
   }
@@ -50,7 +52,9 @@ export function summarize(
   for (const duty of duties) {
     if (duty.duty_date > through) continue;
     const special = isWeekendOrHoliday(duty.duty_date);
-    monthFor(duty.duty_date)[special ? "weekend" : "weekday"]++;
+    const counts = monthFor(duty.duty_date).mediumCounts;
+    const memberId = duty.member_id && scores.has(duty.member_id) ? duty.member_id : null;
+    counts.set(memberId, (counts.get(memberId) ?? 0) + 1);
     medium++;
     volume += duty.volume_ml;
     if (special) weekend++;
@@ -66,7 +70,7 @@ export function summarize(
     const date = split.performed_date ?? (split.completed_at && israelDate.format(new Date(split.completed_at)));
     if (!date || date > through) continue;
     splitDates.set(split.id, date);
-    monthFor(date).splits++;
+    monthFor(date);
 
     const performer = split.completed_by_member_id && scores.get(split.completed_by_member_id);
     if (!performer) continue;
@@ -86,12 +90,12 @@ export function summarize(
     if (score) score.plates += registration.plates_count;
   }
 
-  const timeline = [];
+  const timeline: (MonthStats & { key: string })[] = [];
   if (start) {
     const cursor = new Date(start.slice(0, 7) + "-01T00:00:00Z");
     while (cursor.toISOString().slice(0, 7) <= through.slice(0, 7)) {
       const key = cursor.toISOString().slice(0, 7);
-      timeline.push({ key, ...(months.get(key) ?? { weekday: 0, weekend: 0, splits: 0, plates: 0 }) });
+      timeline.push({ key, ...(months.get(key) ?? { mediumCounts: new Map<string | null, number>(), plates: 0 }) });
       cursor.setUTCMonth(cursor.getUTCMonth() + 1);
     }
   }

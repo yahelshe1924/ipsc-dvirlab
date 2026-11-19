@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { getColor } from "@/lib/colors";
 import { createClient } from "@/lib/supabase";
 import { israelDate, summarize } from "./report";
 import type { CompletedSplit, MediumDuty, Person, PlateRegistration } from "./report";
@@ -9,6 +10,56 @@ import styles from "./poster.module.css";
 
 const number = new Intl.NumberFormat("he-IL");
 const monthName = new Intl.DateTimeFormat("he-IL", { month: "short", timeZone: "UTC" });
+
+function monthLabel(key: string) {
+  return monthName.format(new Date(key + "-01T00:00:00Z")) + " " + key.slice(2, 4);
+}
+
+function MediumChart({ report }: { report: ReturnType<typeof summarize> }) {
+  const members = report.scores.slice().sort((a, b) => a.name.localeCompare(b.name, "he"))
+    .map(({ id, name, colorIndex }) => ({ id: id as string | null, name, color: getColor(colorIndex).bg }));
+  members.push({ id: null, name: "ללא שיוך", color: "#66727a" });
+  const percent = new Intl.NumberFormat("he-IL", { style: "percent", maximumFractionDigits: 1 });
+
+  return (
+    <section className={styles.panel}>
+      <h2>החלפות מדיום לפי חודש</h2>
+      <p className={styles.unit}>חלקו של כל חבר צוות מתוך כלל ההחלפות שהושלמו בחודש</p>
+      <div className={styles.mediumMonths}>
+        {report.timeline.map(({ key, mediumCounts }) => {
+          const total = Array.from(mediumCounts.values()).reduce((sum, count) => sum + count, 0);
+          const entries = members.flatMap((member) => {
+            const count = mediumCounts.get(member.id);
+            return count ? [{ ...member, count, share: count / total }] : [];
+          });
+          return (
+            <div className={styles.mediumMonth} key={key}>
+              <h3>{monthLabel(key)} <span>· {number.format(total)} החלפות</span></h3>
+              {total > 0 && (
+                <>
+                  <div className={styles.percentBar} aria-hidden="true">
+                    {entries.map(({ id, name, color, count, share }) => (
+                      <span key={id ?? "unassigned"} title={name + " · " + count + " · " + percent.format(share)}
+                        style={{ width: (share * 100) + "%", background: color }} />
+                    ))}
+                  </div>
+                  <ul className={styles.breakdown}>
+                    {entries.map(({ id, name, color, count, share }) => (
+                      <li key={id ?? "unassigned"}>
+                        <span className={styles.swatch} style={{ background: color }} aria-hidden="true" />
+                        <bdi>{name}</bdi> {number.format(count)} ({percent.format(share)})
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 async function readAll<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
@@ -41,7 +92,7 @@ export default function PosterPage() {
       readAll<PlateRegistration>((from, to) => db.from("split_registrations")
         .select("split_id, member_id, plates_count")
         .order("split_id").order("member_id").range(from, to)),
-      readAll<Person>((from, to) => db.from("members").select("id, full_name").order("id").range(from, to)),
+      readAll<Person>((from, to) => db.from("members").select("id, full_name, color_index").order("id").range(from, to)),
     ]).then(([duties, splits, registrations, people]) => {
       if (active) setReport(summarize(duties, splits, registrations, people, through));
     }).catch(() => {
@@ -50,6 +101,7 @@ export default function PosterPage() {
     return () => { active = false; };
   }, [through]);
 
+  const maxMonthlyPlates = Math.max(1, ...(report?.timeline.map(({ plates }) => plates) ?? []));
   const activityRankings = [
     { key: "weekend", title: "החלפות בסופי שבוע ובחגים", unit: "החלפות" },
     { key: "volume", title: "נפח מדיום מצטבר", unit: "מ״ל" },
@@ -127,44 +179,23 @@ export default function PosterPage() {
               </section>
             ))}
 
-            {([
-              { title: "החלפות מדיום לפי חודש", series: [
-                { key: "weekday", label: "ימי חול" }, { key: "weekend", label: "סופי שבוע וחגים" },
-              ] },
-              { title: "הקצאת צלחות לפי חודש", series: [{ key: "plates", label: "צלחות שהוקצו" }] },
-            ] as const).map(({ title, series }) => {
-              const total = (month: typeof report.timeline[number]) =>
-                series.reduce((sum, { key }) => sum + month[key], 0);
-              const max = Math.max(1, ...report.timeline.map(total));
-              return (
-                <section className={styles.panel} key={title}>
-                  <h2>{title}</h2>
-                  <div className={styles.legend}>
-                    {series.map(({ key, label }) => <span key={key} className={styles[key]}>{label}</span>)}
+            <MediumChart report={report} />
+            <section className={styles.panel}>
+              <h2>הקצאת צלחות לפי חודש</h2>
+              <div className={styles.timeline}>
+                {report.timeline.map(({ key, plates }) => (
+                  <div className={styles.column} key={key}>
+                    <div className={styles.plot}>
+                      <span className={styles.stack} style={{ height: (plates / maxMonthlyPlates * 100) + "%" }}>
+                        <strong>{number.format(plates)}</strong>
+                        <span className={styles.plates} style={{ flexGrow: 1 }} />
+                      </span>
+                    </div>
+                    <span>{monthLabel(key)}</span>
                   </div>
-                  <div className={styles.timeline}>
-                    {report.timeline.map((month) => {
-                      const label = `${monthName.format(new Date(month.key + "-01T00:00:00Z"))} ${month.key.slice(2, 4)}`;
-                      return (
-                        <div className={styles.column} key={month.key}
-                          aria-label={`${label}, ${series.map(({ key, label }) => `${label} ${month[key]}`).join(", ")}`}
-                          role="img">
-                          <div className={styles.plot} aria-hidden="true">
-                            <span className={styles.stack} style={{ height: `${total(month) / max * 100}%` }}>
-                              <strong>{number.format(total(month))}</strong>
-                              {series.map(({ key }) => (
-                                <span key={key} className={styles[key]} style={{ flexGrow: month[key] }} />
-                              ))}
-                            </span>
-                          </div>
-                          <span aria-hidden="true">{label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })}
+                ))}
+              </div>
+            </section>
             <footer className={styles.notes}>
               <p><strong>{report.medium ? number.format(Math.round(report.weekend / report.medium * 100)) : "0"}%</strong> מהחלפות המדיום בוצעו בסופי שבוע ובחגים.</p>
               <p>הדוח כולל פעולות שסומנו כהושלמו. החלפות מדיום משויכות לאחראי הרשום ביומן. סופי שבוע כוללים שישי ושבת, והחגים מסווגים לפי מסך הסטטיסטיקה. נפח המדיום מבוסס על הערך השמור באפליקציה, שכיום מתעד 12 מ״ל להחלפה. צלחות שהוקצו נספרות לפי הרישום לחברי הצוות בפיצולים שהושלמו. בדירוג הפיצולים, הפעילות משויכת למי שרשום כמבצע. מספר הצלחות שהוכנו כולל צלחות לצוות, לתחזוקה ול־Flow, עבור פיצולים שבהם נשמרה ספירה בפועל.</p>
