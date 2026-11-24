@@ -41,6 +41,9 @@ export default function RootLayout({
                 <Link href="/splits" style={navLink}>
                   Splits
                 </Link>
+                <Link href="/flow" style={navLink}>
+                  Flow
+                </Link>
                 <Link href="/stats" style={navLink}>
                   Stats
                 </Link>

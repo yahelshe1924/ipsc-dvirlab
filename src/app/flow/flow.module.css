@@ -1,0 +1,92 @@
+.page {
+  display: grid;
+  gap: 16px;
+}
+
+.page h1,
+.card h2 {
+  margin: 0;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.card h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  align-items: end;
+  gap: 14px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fields input,
+.fields select,
+.card button {
+  min-height: 40px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.fields button {
+  justify-self: start;
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #fff;
+}
+
+.card button:disabled {
+  opacity: 0.55;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.card table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.card th,
+.card td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px;
+  text-align: left;
+}
+
+.card th {
+  background: #f8fafc;
+  font-size: 14px;
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
